@@ -24,24 +24,29 @@ module ORM
     end
 
     def has_one(type, desc)
-      # TODO: Extender la cantidad de tipos admitidos.
-      unless [String, Numeric, Boolean].include?(type) then
-        raise "Error: un atributo debe ser String, Numeric o Boolean"
+      unless [String, Numeric, Boolean].include?(type) ||
+          type.is_a?(ORM::PersistableClass)
+        raise "Error: un atributo debe ser de una clase persistible"
       end
 
       # Incluir el mixin que brinda las operaciones save, refresh y forget.
-      include ORM::DataManipulation
+      include ORM::PersistableObject
 
-      # Extender la clase agregando el metodo all_instances()
-      extend ORM::DataHome
+      # Extender la clase agregando el metodo all_instances().
+      extend ORM::PersistableClass
 
       # Getter y setter para el atributo.
       attr_accessor desc[:named]
 
       # Define un metodo find_by_<atributo> que recibe un valor
       self.define_singleton_method("find_by_#{desc[:named]}") do |value|
-        self.find_by(desc[:named], value)
+        all_instances.find_all do |instance|
+          instance.send(desc[:named]) == value
+        end
       end
+
+      # Definir id, id= y find_by_id con una llamada recursiva.
+      has_one(String, named: :id) unless desc[:named] == :id
 
       # Agregarlo a la coleccion. La clase Hash a su vez asegura que cada
       #   clave (nombre de atributo) sea unica.
@@ -49,63 +54,79 @@ module ORM
     end
   end
 
-  module DataManipulation
-    attr_accessor :id
-
+  module PersistableObject
     def save!
       entry = Hash.new
 
-      puts "Table #{self.class}:"
-
-      self.class.send(:persistable_attributes).each_pair do
-        |name, type|
-        value = self.instance_variable_get("@#{name}")
-
-        puts "\tSave #{name} = \"#{value}\" (#{type})"
-
+      self.class.send(:persistable_attributes).each_pair do |name, type|
         # {id_atributo : valor}
-        entry[name] = value
+
+        entry[name] =
+          if [String, Numeric, Boolean].include?(type) then
+            # Tipo basico.
+            self.send(name)
+          else
+            # Clave foranea.
+            self.send(name).save!
+          end
       end
 
-      # FIXME: all_instances no guarda las instancias sino la genera
-      #   a partir de la BD.
-      self.class.all_instances << self
+      TADB::DB.table(self.class.to_s).delete(self.id)
       self.id = TADB::DB.table(self.class.to_s).insert(entry)
     end
 
     def refresh!
-      puts "Refresh..."
+      if self.id.nil?
+        raise "Error: Esta instancia no tiene id!"
+      end
 
-      # FIXME: Esto esta mal porque debe mantener la misma id.
-      # Eliminar la entrada por id y volver a guardar.
-      self.forget!
-      self.save!
+      # Obtener la instancia desde la BD.
+      saved_instance = self.class.find_by_id(self.id).first
+
+      # Setear todos los atributos con los valores de saved_instance.
+      self.class.send(:persistable_attributes).each_pair do |name, type|
+        self.send("#{name}=", saved_instance.send(name))
+      end
+
+      self
     end
 
     def forget!
       if self.id.nil?
-        raise "Error: #{self.to_s} no tiene id!"
+        raise "Error: Esta instancia no tiene id!"
       end
 
-      puts "Forget #{self.to_s}"
       TADB::DB.table(self.class.to_s).delete(self.id)
 
-      self.class.all_instances.delete(self)
       self.id = nil
     end
   end
 
-  module DataHome
+  module PersistableClass
     attr_accessor :all_instances
 
     def all_instances
-      # TODO: Obtener las instancias con los datos de la BD.
-      @all_instances ||= Array.new
-    end
 
-    def find_by(attribute_name, value)
-      all_instances.find_all do |instance|
-        instance.send(attribute_name) == value
+      # Mapear cada Hash de atributos y valores a una
+      #   instancia con esos atributos y valores.
+      TADB::DB.table(self.to_s).entries.map do |entry|
+        instance = self.new
+
+        entry.each_pair do |attr, value|
+          # Clase del atributo.
+          type = persistable_attributes[attr]
+
+          if [String, Numeric, Boolean].include?(type)
+            instance.method("#{attr}=").call(value)
+          else
+            instance.method("#{attr}=").call(
+              # Instancia de la clase referenciada con el id indicado.
+              type.find_by_id(value).first
+            )
+          end
+        end
+
+        instance
       end
     end
   end
