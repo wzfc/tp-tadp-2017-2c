@@ -24,16 +24,16 @@ module ORM
     end
 
     def has_one(type, desc)
-      # TODO: Extender la cantidad de tipos admitidos.
-      unless [String, Numeric, Boolean].include?(type) then
-        raise "Error: un atributo debe ser String, Numeric o Boolean"
+      unless [String, Numeric, Boolean].include?(type) ||
+          type.is_a?(ORM::PersistableClass)
+        raise "Error: un atributo debe ser de una clase persistible"
       end
 
       # Incluir el mixin que brinda las operaciones save, refresh y forget.
-      include ORM::DataManipulation
+      include ORM::PersistableObject
 
-      # Extender la clase agregando el metodo all_instances()
-      extend ORM::DataHome
+      # Extender la clase agregando el metodo all_instances().
+      extend ORM::PersistableClass
 
       # Getter y setter para el atributo.
       attr_accessor desc[:named]
@@ -54,13 +54,21 @@ module ORM
     end
   end
 
-  module DataManipulation
+  module PersistableObject
     def save!
       entry = Hash.new
 
-      self.class.send(:persistable_attributes).each_key do |name|
+      self.class.send(:persistable_attributes).each_pair do |name, type|
         # {id_atributo : valor}
-        entry[name] = self.instance_variable_get("@#{name}")
+
+        entry[name] =
+          if [String, Numeric, Boolean].include?(type) then
+            # Tipo basico.
+            self.send(name)
+          else
+            # Clave foranea.
+            self.send(name).save!
+          end
       end
 
       TADB::DB.table(self.class.to_s).delete(self.id)
@@ -72,13 +80,15 @@ module ORM
         raise "Error: Esta instancia no tiene id!"
       end
 
-      TADB::DB.table(self.class.to_s).entries.each do |entry|
-        entry.each_pair do |attr, value|
-          self.method("#{attr}=").call(value)
-        end
+      # Obtener la instancia desde la BD.
+      saved_instance = self.class.find_by_id(self.id).first
+
+      # Setear todos los atributos con los valores de saved_instance.
+      self.class.send(:persistable_attributes).each_pair do |name, type|
+        self.send("#{name}=", saved_instance.send(name))
       end
 
-      nil
+      self
     end
 
     def forget!
@@ -92,7 +102,7 @@ module ORM
     end
   end
 
-  module DataHome
+  module PersistableClass
     attr_accessor :all_instances
 
     def all_instances
@@ -103,7 +113,17 @@ module ORM
         instance = self.new
 
         entry.each_pair do |attr, value|
-          instance.method("#{attr}=").call(value)
+          # Clase del atributo.
+          type = persistable_attributes[attr]
+
+          if [String, Numeric, Boolean].include?(type)
+            instance.method("#{attr}=").call(value)
+          else
+            instance.method("#{attr}=").call(
+              # Instancia de la clase referenciada con el id indicado.
+              type.find_by_id(value).first
+            )
+          end
         end
 
         instance
