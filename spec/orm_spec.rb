@@ -33,10 +33,10 @@ describe 'Orm' do
         entry[:id] ||= SecureRandom.uuid
         invalid_keys = entry.keys.select do |k|
           v = entry[k]
-          !v.is_a? (String) && !v.is_a? (Numeric) && v != true && != false
+          [String, Numeric, TrueClass, FalseClass].include?(v.class)
         end
 
-        if !invalid_keys.empty?
+        if unless invalid_keys.empty?
           throw(TypeError.new("Can't persist field(s) #{invalid_keys} because they contain non-primitive values #{invalid_keys.map {|k| entry[k]}}"))
         end
 
