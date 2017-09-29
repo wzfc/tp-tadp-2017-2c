@@ -170,7 +170,7 @@ it 'puedo usar all_instances en Point' do
 end
 
 it 'puedo usar all_instances en Student' do
-
+  Student.new
   Student​.find_by_id​("5")
   Student​.​find_by_full_name("tito​ ​ puente")
   Student​.find_by_grade​(2)
