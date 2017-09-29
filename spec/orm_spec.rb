@@ -55,7 +55,7 @@ describe 'Orm' do
           end
         end
       end
-        
+
       def clear
         File.open("./db/#{@name}", "w") {}
       end
@@ -71,6 +71,112 @@ describe 'Orm' do
     end
   end
 
+  class Person
+    has_one String, named: :first_name
+    has_one String, named: :last_name
+    has_one Numeric, named: :age
+    has_one Boolean, named: :admin
+    attr_accessor :some_other_non_persistible_attribute
+  end
+
+  class Grade
+    has_one String, named: :value
+    has_one Numeric, named: :value
+  end
+
+  class Point
+    has_one Numeric, named: :x
+    has_one Numeric, named: :y
+    def add(other)
+      x = self.x + other.x
+      y = self.y + other.x
+    end
+  end
+
+  class Student
+    has_one String, named: :full_name
+    has_one Numeric, named: :grade
+    def promoted
+      self.grade > 8
+    end
+    def has_last_name(last_name)
+      self.full_name.split(' ').[1] === last_name
+    end
+  end
+
+
+it 'puedo usar has_one' do
+  p​ = ​Person​.new
+  p​.first_name​ = "raul"​
+  p​.last_name​ = 8
+  expect(p.first_name).to eq(8)
 end
 
+it 'puedo usar save' do
+  p​ = ​Person​.new
+  p​.first_name​ = "raul"
+  p​.last_name​ ​= ​"porcheto"
+  p​.save!
+  expect(p.id).to eq("0fa00-f1230-0660-0021")
+end
 
+it 'puedo usar refresh' do
+  p​ ​= ​Person​.new
+  p​.first_name​ = "jose"
+  p​.save!
+  p​.first_name​ = ​"pepe"
+  p​.first_name​ ​ ​ ​ ​ ​ ​ ​ ​ ​ ​ ​ ​ ​ ​ ​
+  p​.refresh!
+  p​.first_name​ ​
+  Person.new.refresh​! ​
+  expect { Person.new.refresh​! ​}.to raise_error(Error, 'El objeto no tiene id')
+end
+
+it 'puedo usar forget' do
+  p​​ =​ Person.new
+  p​.first_name​ =​ "arturo"
+  p​.last_name​ ​= ​"puig"
+  p​.save
+  p​.id​
+  p​.​forget
+  expect(p.id).to eq(nil)
+end
+
+# Recuperación​ y ​Búsqueda
+
+it 'puedo usar all_instances en Point' do
+  p1​ ​= Point.new
+  p1​.x​ = 2
+  p1​.y​ = ​5
+  p1​.save!
+
+  p2​ =​ Point.new
+  p2​.x​ = 1
+  p2​.​y =​ 3
+  p2​.​save!
+
+  p3 = Point.new
+  p3.x = ​9
+  p3.y = ​7
+
+  Point​.all_instances​ ​ ​ ​ ​ ​ ​ ​
+  p4​ ​=​ Point​.​all_instances​.first
+  p4​.add(p2)
+  p4​.save!
+  Point​.all_instances​ ​ ​ ​ ​ ​ ​ ​
+  p2​.forget!
+  Point.all_instances​ ​ ​ ​ ​ ​ ​
+  expect(p.id).to eq(nil)
+end
+
+it 'puedo usar all_instances en Student' do
+
+  Student​.find_by_id​("5")
+  Student​.​find_by_full_name("tito​ ​ puente")
+  Student​.find_by_grade​(2)
+  Student​.find_by_promoted(false)
+  Student​.find_by_has_last_name("puente")
+  expect(p.id).to eq(nil)
+end
+
+end

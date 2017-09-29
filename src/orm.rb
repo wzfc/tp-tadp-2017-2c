@@ -15,7 +15,7 @@ module ORM
         #   drop(1) porque el primer ancestor es la misma clase.
         self.ancestors.drop(1).reverse_each do |cls|
           @persistable_attributes.merge!(
-            Hash(cls.instance_variable_get(:@persistable_attributes))
+              Hash(cls.instance_variable_get(:@persistable_attributes))
           )
         end
       end
@@ -40,8 +40,13 @@ module ORM
 
       # Define un metodo find_by_<atributo> que recibe un valor
       self.define_singleton_method("find_by_#{desc[:named]}") do |value|
-        self.find_by(desc[:named], value)
+        all_instances.find_all do |instance|
+          instance.send(desc[:named]) == value
+        end
       end
+
+      # Definir id, id= y find_by_id con una llamada recursiva.
+      has_one(String, named: :id) unless desc[:named] == :id
 
       # Agregarlo a la coleccion. La clase Hash a su vez asegura que cada
       #   clave (nombre de atributo) sea unica.
@@ -50,47 +55,39 @@ module ORM
   end
 
   module DataManipulation
-    attr_accessor :id
-
     def save!
       entry = Hash.new
 
-      puts "Table #{self.class}:"
-
-      self.class.send(:persistable_attributes).each_pair do
-        |name, type|
-        value = self.instance_variable_get("@#{name}")
-
-        puts "\tSave #{name} = \"#{value}\" (#{type})"
-
+      self.class.send(:persistable_attributes).each_key do |name|
         # {id_atributo : valor}
-        entry[name] = value
+        entry[name] = self.instance_variable_get("@#{name}")
       end
 
-      # FIXME: all_instances no guarda las instancias sino la genera
-      #   a partir de la BD.
-      self.class.all_instances << self
+      TADB::DB.table(self.class.to_s).delete(self.id)
       self.id = TADB::DB.table(self.class.to_s).insert(entry)
     end
 
     def refresh!
-      puts "Refresh..."
+      if self.id.nil?
+        raise "Error: Esta instancia no tiene id!"
+      end
 
-      # FIXME: Esto esta mal porque debe mantener la misma id.
-      # Eliminar la entrada por id y volver a guardar.
-      self.forget!
-      self.save!
+      TADB::DB.table(self.class.to_s).entries.each do |entry|
+        entry.each_pair do |attr, value|
+          self.method("#{attr}=").call(value)
+        end
+      end
+
+      nil
     end
 
     def forget!
       if self.id.nil?
-        raise "Error: #{self.to_s} no tiene id!"
+        raise "Error: Esta instancia no tiene id!"
       end
 
-      puts "Forget #{self.to_s}"
       TADB::DB.table(self.class.to_s).delete(self.id)
 
-      self.class.all_instances.delete(self)
       self.id = nil
     end
   end
@@ -99,13 +96,17 @@ module ORM
     attr_accessor :all_instances
 
     def all_instances
-      # TODO: Obtener las instancias con los datos de la BD.
-      @all_instances ||= Array.new
-    end
 
-    def find_by(attribute_name, value)
-      all_instances.find_all do |instance|
-        instance.send(attribute_name) == value
+      # Mapear cada Hash de atributos y valores a una
+      #   instancia con esos atributos y valores.
+      TADB::DB.table(self.to_s).entries.map do |entry|
+        instance = self.new
+
+        entry.each_pair do |attr, value|
+          instance.method("#{attr}=").call(value)
+        end
+
+        instance
       end
     end
   end
