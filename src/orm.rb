@@ -89,7 +89,7 @@ module ORM
             value
           else
             # Clave foranea.
-            instance.save!
+            value.save!
           end
       end
 
