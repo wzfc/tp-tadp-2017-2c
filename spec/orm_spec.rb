@@ -104,6 +104,37 @@ describe 'Orm' do
     end
   end
 
+    class StudentA
+      has_one String, named: :full_name
+      has_one GradeA, named: :grade
+    end
+    class GradeA
+      has_one Numeric, named: :value
+    end
+
+    module PersonB
+      has_one String, named: :full_name
+    end
+
+    class StudentB
+      include PersonB
+      has_one Grade, named: :grade
+    end
+
+    class Assistance_Professor < StudentB
+      has_one String, named: :type
+    end
+
+    class StudentZ
+      has_one String, named: :full_name, no_blank: true
+      has_one Numeric, named: :age, from: 18, to: 100
+      has_many Grade, named: :grades, validate: proc {value > 2}
+    end
+
+    class StudentX
+      has_one String, namde: :full_name, default: "natalia natalia"
+      has_one Grade, named: :grade, default: Grade.new, no_blank: true
+    end
 
 it 'puedo usar has_one' do
   p​ = ​Person​.new
@@ -177,6 +208,75 @@ it 'puedo usar all_instances en Student' do
   Student​.find_by_promoted(false)
   Student​.find_by_has_last_name("puente")
   expect(p.id).to eq(nil)
+end
+
+it 'puedo usar composicion con unico objeto' do
+  s​ ​= ​StudentA.new
+  s​.full_name​ =​ "leo sbaraglia"
+  s​.grade​ = GradeA.new
+  s​.grade​.value​ =​ 8
+  s​.save​! ​ ​ ​ ​ ​ ​ ​ ​ ​ ​ ​ ​ ​ ​ ​ ​ ​ ​ ​ ​ ​ ​ ​ ​ ​
+  g​​ =​ s.grade​ ​ ​ ​ ​ ​ ​ ​ ​ ​ ​ ​ ​ ​ ​ ​ ​ ​ ​ ​
+  g​.value​ =​ 5
+  g​.​save! ​
+  expect(s​.refresh​!​.grade​).to eq(5)
+end
+
+it 'puedo usar composicion con multiples objetos' do
+  s​ =​ Student​A.new
+  s​.full_name​​ =​ "leo​ ​sbaraglia"
+  s​.grades​ ​ ​ ​ ​ ​ ​ ​ ​ ​ ​ ​ ​ ​ ​ ​ ​ ​ ​ ​ ​ ​ ​ ​
+  s​.grades.push​(GradeA.new)
+  s​.grades​.last.value​ ​=​ 8
+  s​.grades​.push​(Grade.Anew)
+  s​.grades.last​.value​ ​=​ 5
+  s​.save​! ​ ​ ​ ​ ​ ​ ​ ​ ​ ​ ​ ​ ​ ​ ​ ​ ​ ​ ​ ​ ​ ​ ​ ​ ​
+  s​.refresh!.grades​ ​ ​ ​ ​ ​ ​ ​ ​ ​ ​ ​ ​ ​ ​
+  g​​ = s.grades.last
+  g​.value​ =​ 6
+  g​.save!
+  expect(s​.refresh​!​.grades​).to eq(8)
+end
+
+it 'puedo usar herencia entre tipos' do
+  PersonB​.all_instances​ ​ ​ ​ ​ ​ ​
+  StudentB​.search_by_id("5") ​
+  Student​B.search_by_type​("a") ​
+  expect { Student​B.search_by_type​("a") ​​}.to raise_error(Error, 'El objeto no entiende serrch_by_type')
+end
+
+it 'puedo usar validaciones de tipos' do
+  s​=​ Student.new
+  s​.full_name​ ​=​ 5
+  s​.save​! ​ ​ ​ ​ ​ ​ ​ ​ ​ ​ ​ ​ ​ ​ ​ ​ ​ ​ ​ ​ ​ ​ ​ ​
+  s​.full_name​ = ​"pepe​ botella"
+  s​.save​! ​ ​ ​ ​ ​ ​ ​ ​ ​ ​ ​ ​ ​ ​ ​ ​ ​ ​ ​ ​ ​ ​ ​ ​
+  s​.​grade ​= ​Grade.new
+  s​.save​! ​ ​ ​ ​
+  expect { s​.save​! ​}.to raise_error(Error, 'Grade.vsalue no es un Number')
+end
+
+it 'puedo usar validaciones de contenido' do
+  s​ ​=​ StudentZ​.new
+  s​.full_name​ =​ ""
+  s​.save​! ​ ​ ​ ​ ​ ​ ​ ​ ​ ​ ​ ​ ​ ​ ​ ​ ​ ​ ​ ​ ​ ​ ​ ​
+  s​.full_name​ ​=​ "emanuel​ ortega"
+  s​.age​ ​=​ 15
+  s​.save! ​ ​ ​ ​ ​ ​ ​ ​ ​ ​ ​ ​ ​ ​ ​ ​ ​ ​ ​ ​ ​ ​ ​ ​
+  s​.age​ = ​22
+  s​.grades​.push(Grade​.new)
+  s​.save! ​ ​ ​ ​
+  expect { s​.save! ​ ​​​}.to raise_error(Error, 'grade.value​ ​ no​ ​ es​ ​ > ​ ​ 2!')
+end
+
+it 'puedo usar validaciones por defecto' do
+  s​ = Student​X.new
+  s​.full_name​ ​ ​ ​ ​ ​ ​ ​ ​ ​ ​ ​ ​ ​ ​ ​ ​ ​ ​ ​ ​
+  s​.name​ =​ nil
+  s​.save!
+  s​.refresh!
+  s​.full_name​ ​ ​ ​ ​ ​ ​ ​ ​ ​ ​ ​ ​ ​ ​ ​ ​ ​ ​ ​ ​ ​ ​
+  expect(s​.full_name​ ).to eq('natalia natalia')
 end
 
 end
