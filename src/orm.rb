@@ -1,6 +1,5 @@
 require 'tadb'
 
-# Estaria bueno poner los submodulos de ORM en distintos archivos
 module ORM
   module DSL
     private
@@ -131,47 +130,11 @@ module ORM
                   self.send(name)
                 end
 
-        # Lanzar una excepcion a menos que sea
-        #   nil o de la clase correspondiente.
-        unless value.nil? || value.is_a?(constraints[:type]) then
-          raise "Error: \"#{name}\" debe ser un "\
-            "\"#{constraints[:type].to_s}\"."
+        constraints.each_pair do |option, arg|
+          # El modulo ORM::Validation se encarga de hacer cada validacion.
+          self.instance_exec(name, value, arg, &ORM::Validation.send(option))
         end
-
-        # Si es un tipo complejo.
-        if [String, Numeric, Boolean].include?(constraints[:type])
-          # No blank.
-          if constraints[:no_blank] && (value == nil || value == "")
-            raise "Error: #{name.to_s} no puede tener un valor nulo."
-          end
-
-          # From (valor minimo).
-          if constraints.key?(:from) && constraints[:from] > value
-            raise "Error: #{name.to_s} no puede ser "\
-              "menor que #{constraints[:from]}."
-          end
-
-          # To (valor maximo).
-          if constraints.key?(:to) && constraints[:to] < value
-            raise "Error: #{name.to_s} no puede ser "\
-              "mayor que #{constraints[:to]}."
-          end
-        else
-          value.validate!
-
-          # Validate (bloque de validacion).
-          # TODO: En caso de ser array, se valida para
-          #   cada uno de sus elementos.
-          if constraints.key?(:validate) &&
-              !(value.instance_eval(&constraints[:validate]))
-            raise "Error: Fallo la validacion (#{name.to_s})."
-          end
-        end
-
-        # TODO: Chequear arrays.
       end
-
-      true
     end
   end
 
@@ -201,6 +164,57 @@ module ORM
 
         instance
       end
+    end
+  end
+
+  module Validation
+    def self.type
+      proc do |name, value, arg|
+        unless value.nil? then
+          # Validacion de tipo.
+          unless value.is_a?(arg) then
+            raise "Error: \"#{name}\" debe ser un \"#{arg.to_s}\"."
+          end
+
+          value.validate! if arg.is_a?(ORM::PersistableClass)
+        end
+      end
+    end
+
+    def self.no_blank
+      proc do |name, value, arg|
+        if arg && (value == nil || value == "")
+          raise "Error: #{name.to_s} no puede tener un valor nulo."
+        end
+      end
+    end
+
+    def self.from
+      proc do |name, value, arg|
+        if arg > value
+          raise "Error: #{name.to_s} no puede ser menor que #{arg}."
+        end
+      end
+    end
+
+    def self.to
+      proc do |name, value, arg|
+        if arg < value
+          raise "Error: #{name.to_s} no puede ser mayor que #{arg}."
+        end
+      end
+    end
+
+    def self.validate
+      proc do |name, value, arg|
+        unless value.instance_eval(&arg)
+          raise "Error: Fallo la validacion (#{name.to_s})."
+        end
+      end
+    end
+
+    def self.default
+      proc { |_| }
     end
   end
 end
