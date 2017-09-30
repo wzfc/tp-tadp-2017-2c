@@ -74,54 +74,23 @@ module ORM
     def save!
       entry = Hash.new                           # {id_atributo : valor}
 
+      self.validate!
+
       self.class.send(:persistable_attributes).each_pair do |name, constraints|
-        if [String, Numeric, Boolean].include?(constraints[:type]) then
-          # Tipo basico.
+        value = if self.send(name).nil?
+                  constraints[:default]          # Valor por default.
+                else
+                  self.send(name)
+                end
 
-          value = if self.send(name).nil?
-                    constraints[:default]        # Valor por default.
-                  else
-                    self.send(name)
-                  end
-
-          # No blank.
-          if constraints[:no_blank] && (value == nil || value == "")
-            raise "Error: #{name.to_s} no puede tener un valor nulo."
+        entry[name] =
+          if [String, Numeric, Boolean].include?(constraints[:type]) then
+            # Tipo basico.
+            value
+          else
+            # Clave foranea.
+            instance.save!
           end
-
-          # From (valor minimo).
-          if constraints.key?(:from) && constraints[:from] > value
-            raise "Error: #{name.to_s} no puede ser "\
-              "menor que #{constraints[:from]}."
-          end
-
-          # To (valor maximo).
-          if constraints.key?(:to) && constraints[:to] < value
-            raise "Error: #{name.to_s} no puede ser "\
-              "mayor que #{constraints[:to]}."
-          end
-
-          entry[name] = value
-        else
-          # Clave foranea.
-
-          instance = if self.send(name).nil?
-                       constraints[:default]     # Instancia por default.
-                     else
-                       self.send(name)
-                     end
-
-          # Validate (bloque de validacion).
-          # TODO: En caso de ser array, se valida para
-          #   cada uno de sus elementos.
-          if constraints.key?(:validate) &&
-              instance.instance_eval(&constraints[:validate])
-            raise "Error: Fallo la validacion."
-          end
-
-          # Guarda la clave foranea.
-          entry[name] = instance.save!
-        end
       end
 
       TADB::DB.table(self.class.to_s).delete(self.id)
@@ -156,16 +125,53 @@ module ORM
 
     def validate!
       self.class.send(:persistable_attributes).each_pair do |name, constraints|
+        value = if self.send(name).nil?
+                  constraints[:default]          # Valor por default.
+                else
+                  self.send(name)
+                end
+
         # Lanzar una excepcion a menos que sea
         #   nil o de la clase correspondiente.
-        unless self.send(name).nil? &&
-            self.send(name).is_a?(constraints[:type])
+        unless value.nil? || value.is_a?(constraints[:type]) then
           raise "Error: \"#{name}\" debe ser un "\
             "\"#{constraints[:type].to_s}\"."
         end
 
-        # TODO: Chequear tipos complejos.
+        # Si es un tipo complejo.
+        if [String, Numeric, Boolean].include?(constraints[:type])
+          # No blank.
+          if constraints[:no_blank] && (value == nil || value == "")
+            raise "Error: #{name.to_s} no puede tener un valor nulo."
+          end
+
+          # From (valor minimo).
+          if constraints.key?(:from) && constraints[:from] > value
+            raise "Error: #{name.to_s} no puede ser "\
+              "menor que #{constraints[:from]}."
+          end
+
+          # To (valor maximo).
+          if constraints.key?(:to) && constraints[:to] < value
+            raise "Error: #{name.to_s} no puede ser "\
+              "mayor que #{constraints[:to]}."
+          end
+        else
+          value.validate!
+
+          # Validate (bloque de validacion).
+          # TODO: En caso de ser array, se valida para
+          #   cada uno de sus elementos.
+          if constraints.key?(:validate) &&
+              !(value.instance_eval(&constraints[:validate]))
+            raise "Error: Fallo la validacion (#{name.to_s})."
+          end
+        end
+
+        # TODO: Chequear arrays.
       end
+
+      true
     end
   end
 
