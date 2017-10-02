@@ -2,10 +2,35 @@ require 'tadb'
 
 module ORM
   module DSL
+    class AttributeMap
+      attr_accessor :type, :default_value, :validations
+
+      def initialize(type, opts)
+        self.type = type
+        self.default_value = opts.delete(:default)
+
+        @complex = opts.delete(:complex) | false
+
+        # Crea un array de procs de validacion.
+        self.validations =
+          opts.map do |constraint, args|
+            ORM::Validation.send(constraint, args)
+          end
+      end
+
+      def primitive?
+        [String, Numeric, Boolean].include?(self.type)
+      end
+
+      def complex?
+        @complex
+      end
+    end
+
     private
 
     # Devuelve una coleccion de tuplas que contienen:
-    #   {clave=nombre_atributo, valor=hash_de_constraints}
+    #   {clave=nombre_atributo, valor=attribute_map}
     def persistable_attributes
       if @persistable_attributes.nil? then
         @persistable_attributes = Hash.new
@@ -31,11 +56,18 @@ module ORM
       # Extraer la clave :named porque va a ser la clave del hash de atributos.
       attr_name = constraints.delete(:named)
 
-      # Incluir el mixin que brinda las operaciones save, refresh y forget.
-      include ORM::PersistableObject
+      unless self.is_a?(ORM::PersistableClass) then
+        # Incluir el mixin que brinda las operaciones save, refresh y forget.
+        include ORM::PersistableObject
 
-      # Extender la clase agregando el metodo all_instances().
-      extend ORM::PersistableClass
+        # Extender la clase agregando el metodo all_instances().
+        extend ORM::PersistableClass
+
+        # Definir id, id= y find_by_id con una llamada recursiva.
+        has_one String, named: :id
+      end
+
+      attribute_map = AttributeMap.new(type, constraints)
 
       # Getter para el atributo que devuelve un valor
       #   por default si este no esta definido.
@@ -43,7 +75,7 @@ module ORM
         if instance_variables.include?("@#{attr_name}".to_sym)
           self.instance_eval "@#{attr_name}"
         else
-          constraints[:default]
+          attribute_map.default_value
         end
       end
 
@@ -57,15 +89,9 @@ module ORM
         end
       end
 
-      # Definir id, id= y find_by_id con una llamada recursiva.
-      has_one(String, named: :id) unless attr_name == :id
-
-      # Agregar una clave :type que indica la clase del atributo.
-      constraints[:type] = type
-
-      # Guarda los constraints coleccion. La clase Hash a su vez
+      # Guarda attribute_map en la coleccion. La clase Hash a su vez
       #   asegura que cada clave (nombre de atributo) sea unica.
-      persistable_attributes[attr_name] = constraints
+      persistable_attributes[attr_name] = attribute_map
     end
   end
 
@@ -75,19 +101,19 @@ module ORM
 
       self.validate!
 
-      self.class.send(:persistable_attributes).each_pair do |name, constraints|
+      self.class.send(:persistable_attributes).each_pair do |name, attr_map|
         value = if self.send(name).nil?
-                  constraints[:default]          # Valor por default.
+                  attr_map.default_value         # Valor por default.
                 else
                   self.send(name)
                 end
 
         entry[name] =
-          if [String, Numeric, Boolean].include?(constraints[:type]) then
+          if attr_map.primitive? then
             # Tipo basico.
             value
           else
-            # Clave foranea.
+            # ID.
             value.save!
           end
       end
@@ -97,7 +123,6 @@ module ORM
     end
 
     def refresh!
-
       if self.id.nil?
         raise "Error: Esta instancia no tiene id!"
       end
@@ -124,22 +149,23 @@ module ORM
     end
 
     def validate!
-      self.class.send(:persistable_attributes).each_pair do |name, constraints|
+      self.class.send(:persistable_attributes).each_pair do |name, attr_map|
         value = if self.send(name).nil?
-                  constraints[:default]          # Valor por default.
+                  attr_map.default_value         # Valor por default.
                 else
                   self.send(name)
                 end
 
-        constraints.each_pair do |option, arg|
-          # El modulo ORM::Validation se encarga de hacer cada validacion.
-          self.instance_exec(name, value, arg, &ORM::Validation.send(option))
+        attr_map.validations.each do |validation|
+          self.instance_exec(name, value, &validation)
         end
       end
     end
   end
 
   module PersistableClass
+    attr_accessor :all_instances
+
     def all_instances
 
       # Mapear cada Hash de atributos y valores a una
@@ -149,7 +175,7 @@ module ORM
 
         entry.each_pair do |attr, value|
           # Clase del atributo.
-          type = persistable_attributes[attr][:type]
+          type = persistable_attributes[attr].type
 
           if [String, Numeric, Boolean].include?(type)
             instance.method("#{attr}=").call(value)
@@ -167,8 +193,8 @@ module ORM
   end
 
   module Validation
-    def self.type
-      proc do |name, value, arg|
+    def self.type(arg)
+      proc do |name, value|
         unless value.nil? then
           # Validacion de tipo.
           unless value.is_a?(arg) then
@@ -180,40 +206,36 @@ module ORM
       end
     end
 
-    def self.no_blank
-      proc do |name, value, arg|
+    def self.no_blank(arg)
+      proc do |name, value|
         if arg && (value == nil || value == "")
           raise "Error: #{name.to_s} no puede tener un valor nulo."
         end
       end
     end
 
-    def self.from
-      proc do |name, value, arg|
+    def self.from(arg)
+      proc do |name, value|
         if arg > value
           raise "Error: #{name.to_s} no puede ser menor que #{arg}."
         end
       end
     end
 
-    def self.to
-      proc do |name, value, arg|
+    def self.to(arg)
+      proc do |name, value|
         if arg < value
           raise "Error: #{name.to_s} no puede ser mayor que #{arg}."
         end
       end
     end
 
-    def self.validate
-      proc do |name, value, arg|
+    def self.validate(arg)
+      proc do |name, value|
         unless value.instance_eval(&arg)
           raise "Error: Fallo la validacion (#{name.to_s})."
         end
       end
-    end
-
-    def self.default
-      proc { |_| }
     end
   end
 end
@@ -221,7 +243,6 @@ end
 # Todas las clases y mixins conocen has_one().
 Module.include ORM::DSL
 
-# REVIEW: No es la mejor solucion
 Boolean = Module.new
 TrueClass.include Boolean
 FalseClass.include Boolean
