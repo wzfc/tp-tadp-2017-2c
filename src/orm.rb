@@ -74,6 +74,8 @@ module ORM
       self.send(:define_method, attr_name) do
         if instance_variables.include?("@#{attr_name}".to_sym)
           self.instance_eval "@#{attr_name}"
+        elsif attribute_map.complex?
+          self.instance_eval "@#{attr_name} = Array.new"
         else
           attribute_map.default_value
         end
@@ -93,6 +95,13 @@ module ORM
       #   asegura que cada clave (nombre de atributo) sea unica.
       persistable_attributes[attr_name] = attribute_map
     end
+
+    def has_many(type, constraints)
+      # Marcar como atributo complejo.
+      constraints[:complex] = true
+
+      self.send(:has_one, type, constraints)
+    end
   end
 
   module PersistableObject
@@ -101,7 +110,10 @@ module ORM
 
       self.validate!
 
-      self.class.send(:persistable_attributes).each_pair do |name, attr_map|
+      self.class.send(:persistable_attributes)
+        .select { |k, v| not(v.complex?) }
+        .each_pair do |name, attr_map|
+
         value = if self.send(name).nil?
                   attr_map.default_value         # Valor por default.
                 else
@@ -120,6 +132,20 @@ module ORM
 
       TADB::DB.table(self.class.to_s).delete(self.id)
       self.id = TADB::DB.table(self.class.to_s).insert(entry)
+
+      # Una vez obtenido el ID, generar la tabla associativa.
+      self.class.send(:persistable_attributes)
+        .select { |k, v| v.complex? }.each_key do |name|
+
+        table = TADB::DB.table("#{self.class.to_s}_#{name}_#{self.id}")
+
+        self.send(name).each do |elem|
+          elem.save!
+          table.insert({id: elem.id})
+        end
+      end
+
+      self.id
     end
 
     def refresh!
@@ -145,6 +171,14 @@ module ORM
 
       TADB::DB.table(self.class.to_s).delete(self.id)
 
+      # Elimina la tabla para los atributos complejos.
+      self.class.send(:persistable_attributes)
+        .select { |k, v| v.complex? }
+        .each_pair do |name, attr_map|
+
+        TADB::DB.table("#{self.class.to_s}_#{name}_#{self.id}").clear
+      end
+
       self.id = nil
     end
 
@@ -157,7 +191,13 @@ module ORM
                 end
 
         attr_map.validations.each do |validation|
-          self.instance_exec(name, value, &validation)
+          if attr_map.complex?
+            value.each do |elem|
+              self.instance_exec(name, elem, &validation)
+            end
+          else
+            self.instance_exec(name, value, &validation)
+          end
         end
       end
     end
@@ -173,16 +213,21 @@ module ORM
       TADB::DB.table(self.to_s).entries.map do |entry|
         instance = self.new
 
-        entry.each_pair do |attr, value|
-          # Clase del atributo.
-          type = persistable_attributes[attr].type
+        persistable_attributes.each_pair do |name, attr_map|
+          if attr_map.primitive?
+            instance.method("#{name}=").call(entry[name])
+          elsif attr_map.complex?
+            # Genera array de instancias.
+            objs = TADB::DB.table("#{self.to_s}_#{name}_#{entry[:id]}")
+              .entries.map do |entry|
+              attr_map.type.find_by_id(entry[:id]).first
+            end
 
-          if [String, Numeric, Boolean].include?(type)
-            instance.method("#{attr}=").call(value)
+            instance.method("#{name}=").call(objs)
           else
-            instance.method("#{attr}=").call(
+            instance.method("#{name}=").call(
               # Instancia de la clase referenciada con el id indicado.
-              type.find_by_id(value).first
+              attr_map.type.find_by_id(entry[name]).first
             )
           end
         end
