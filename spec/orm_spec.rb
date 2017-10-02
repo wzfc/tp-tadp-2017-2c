@@ -128,18 +128,16 @@ describe 'Orm' do
     p4​.save!
     Point​.all_instances​ ​ ​ ​ ​ ​ ​ ​
     p2​.forget!
-    Point.all_instances​ ​ ​ ​ ​ ​ ​
-    expect(p.id).to eq(nil)
+    expect(Point.all_instances​).to eq(​[Point(3,8)])
   end
 
-  it 'puedo usar all_instances en Student' do
+  it 'puedo usar search_by_<what> en Student' do
     Student.new
     Student​.find_by_id​("5")
     Student​.​find_by_full_name("tito​ ​ puente")
     Student​.find_by_grade​(2)
     Student​.find_by_promoted(false)
-    Student​.find_by_has_last_name("puente")
-    expect(p.id).to eq(nil)
+    expect{Student​.find_by_has_last_name("puente")}.to raise_error(Error, '​No​ ​ existe​ ​ el​ ​ mensaje​ ​ porque​ ​ has_last_name​ ​ recibe​ ​ args.')
   end
 
   it 'puedo usar composicion con unico objeto' do
@@ -151,7 +149,7 @@ describe 'Orm' do
     g​​ =​ s.grade​ ​ ​ ​ ​ ​ ​ ​ ​ ​ ​ ​ ​ ​ ​ ​ ​ ​ ​ ​
     g​.value​ =​ 5
     g​.​save! ​
-    expect(s​.refresh​!.grade​).to eq(5)
+    expect(s​.refresh​!.grade​).to eq(Grade(5))
   end
 
   it 'puedo usar composicion con multiples objetos' do
@@ -160,14 +158,14 @@ describe 'Orm' do
     s​.grades​ ​ ​ ​ ​ ​ ​ ​ ​ ​ ​ ​ ​ ​ ​ ​ ​ ​ ​ ​ ​ ​ ​ ​
     s​.grades.push​(GradeA.new)
     s​.grades​.last.value​ = 8
-    s​.grades​.push​(Grade.Anew)
+    s​.grades​.push​(GradeA.new)
     s​.grades.last​.value​ = 5
     s​.save​! ​ ​ ​ ​ ​ ​ ​ ​ ​ ​ ​ ​ ​ ​ ​ ​ ​ ​ ​ ​ ​ ​ ​ ​ ​
     s​.refresh!.grades​ ​ ​ ​ ​ ​ ​ ​ ​ ​ ​ ​ ​ ​ ​
     g​​ = s.grades.last
     g​.value​ =​ 6
     g​.save!
-    expect(s​.refresh​!​.grades​).to eq(8)
+    expect(s​.refresh​!​.grades​).to eq([Grade(8), Grade(6)])
   end
 
   it 'puedo usar herencia entre tipos' do
