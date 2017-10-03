@@ -82,7 +82,7 @@ module ORM
       end
 
       # Setter para el atributo.
-      attr_writer attr_name
+      attr_accessor attr_name
 
       # Define un metodo find_by_<atributo> que recibe un valor
       self.define_singleton_method("find_by_#{attr_name}") do |value|

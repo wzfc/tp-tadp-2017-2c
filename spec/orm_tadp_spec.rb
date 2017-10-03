@@ -18,8 +18,8 @@ class Point
   has_one Numeric, named: :y
 
   def add(other)
-    x = self.x + other.x
-    y = self.y + other.x
+    self.x = self.x + other.x
+    self.y = self.y + other.y
   end
 end
 
@@ -50,7 +50,7 @@ end
 
 class StudentB
   include PersonB
-  has_one Grade, named: :grade
+  has_many GradeA, named: :grade
 end
 
 class Assistance_Professor < StudentB
@@ -82,10 +82,22 @@ describe 'Orm' do
     @estudiante= StudentA.new
     @estudiante.full_name = "Pable Perez"
 
+    @estudiante2= StudentB.new
+    @estudiante2.full_name = "Rocio Oliva"
+
     @grado= GradeA.new
     @grado.value = 5
 
-    @estudiante.grade = @grado
+    @grado2 = GradeA.new
+    @grado2 = 7
+
+    @punto= Point.new
+    @punto.x = 2
+    @punto.y = 5
+
+    @punto2 = Point.new
+    @punto2.x = 1
+    @punto2.y = 3
 
   end
 
@@ -113,8 +125,22 @@ describe 'Orm' do
   end
 
   it 'persiste compuesto simple' do
+    @estudiante.grade = @grado
     @estudiante.save!
     expect(StudentA.find_by_id("64faf926-07b5-4238-bc0e-29f7836b012f")[0].full_name).to eq("Pable Perez")
+  end
+
+  it 'puedo usar all_instances en Point' do
+  @punto.save!
+  @punto2.save!
+  @punto3 = Point.all_instances.first
+  @punto3.add(@punto2)
+  @punto3.save!
+  @punto2.forget!
+
+  expect(Point.all_instances.size).to eq(1)
+  expect(Point.all_instances.first.x).to eq(3)
+  expect(Point.all_instances.first.y).to eq(8)
   end
 
 
