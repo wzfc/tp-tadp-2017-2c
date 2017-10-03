@@ -97,6 +97,7 @@ module ORM
     end
 
     def has_many(type, constraints)
+
       # Marcar como atributo complejo.
       constraints[:complex] = true
 

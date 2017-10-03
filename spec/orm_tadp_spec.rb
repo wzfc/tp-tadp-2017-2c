@@ -50,7 +50,7 @@ end
 
 class StudentB
   include PersonB
-  has_many GradeA, named: :grade
+  has_many GradeA, named: :grades
 end
 
 class Assistance_Professor < StudentB
@@ -89,7 +89,7 @@ describe 'Orm' do
     @grado.value = 5
 
     @grado2 = GradeA.new
-    @grado2 = 7
+    @grado2.value = 7
 
     @punto= Point.new
     @punto.x = 2
@@ -98,6 +98,19 @@ describe 'Orm' do
     @punto2 = Point.new
     @punto2.x = 1
     @punto2.y = 3
+
+    @listaGrados= Array.new
+
+    @listaGrados.push(@grado)
+    @listaGrados.push(@grado2)
+
+    @estudiante2.grades = @listaGrados
+
+    @asistente = Assistance_Professor.new
+
+    @asistente.full_name = 'Roberto Saraza'
+    @asistente.grades = @listaGrados
+    @asistente.type = 'Avanzado'
 
   end
 
@@ -143,8 +156,14 @@ describe 'Orm' do
   expect(Point.all_instances.first.y).to eq(8)
   end
 
+  it 'persiste con has_many' do
+    @estudiante2.save!
+    expect(GradeA.all_instances.size).to eq(2)
+  end
 
-
+  it 'persiste la herencia' do
+    @asistente.save!
+  end
 
 
 
