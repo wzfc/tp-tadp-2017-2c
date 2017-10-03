@@ -3,13 +3,38 @@ require_relative '../src/orm'
 
 describe 'Orm' do
 
-  class Person
-    has_one String, named: :first_name
-    has_one String, named: :last_name
-    has_one Numeric, named: :age
-    has_one Boolean, named: :admin
-    attr_accessor :some_other_non_persistible_attribute
+  describe 'clases' do
+
+    class Person
+      has_one String, named: :first_name
+      has_one String, named: :last_name
+      has_one Numeric, named: :age
+      has_one Boolean, named: :admin
+
+    end
+
+
   end
+
+  describe 'persistencia' do
+
+    it 'puedo usar has_one' do
+      p​ = Person.new
+      p​.first_name = "Raul"
+      p​.last_name = "Perez"
+      p.age = 20
+      p.admin = false
+      expect(p.first_name).to eq("Raul")
+    end
+
+
+  end
+
+
+end
+
+
+=begin
 
   class Grade
     has_one String, named: :value
@@ -71,12 +96,6 @@ describe 'Orm' do
     has_one Grade, named: :grade, default: Grade.new, no_blank: true
   end
 
-  it 'puedo usar has_one' do
-    p​ = Person.new
-    p​.first_name = "raul"
-    p​.last_name​ = 8
-    expect(p.first_name).to eq(8)
-  end
 
   it 'puedo usar save' do
     p​ = Person​.new
@@ -205,4 +224,4 @@ describe 'Orm' do
     expect(s​.full_name​).to eq('natalia natalia')
   end
 
-end
+=end
