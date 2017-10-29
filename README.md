@@ -1,4 +1,6 @@
 # tadp-2017c2-grupo8
 
-### Ejemplo de como podemos estructurar el proyecto:
+###REPOSITORIO DE TPS RUBY & SCALA
+
+******Ejemplo de como podemos estructurar el proyecto Ruby******
 https://learnrubythehardway.org/book/ex46.html
