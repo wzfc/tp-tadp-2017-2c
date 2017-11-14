@@ -10,7 +10,21 @@ package object TAdeQuest {
     def cambiarTrabajo(_trabajo: Trabajo) = copy(trabajo = _trabajo)
     def realizarTrabajo() = copy(statsBase = trabajo(statsBase))
     def equiparItem(item: Item) = item(this)
-    def statsFinales: ConjuntoStats = ??? //Tomar los items y aplicarlos a los stat base
+    def statsFinales: ConjuntoStats = {
+      // Los stats finales no pueden ser menor a 1.
+      val limitar: Stat => Stat = _ max 1
+      
+      // Por cada item del inventario, aplicar el efecto
+      //   al heroe y obtener los stats base del heroe resultante. 
+      inventario.items.foldLeft(this) { (heroeParcial, item) =>
+        // Foldear el efecto porque es un Option.
+        item.efecto.fold(heroeParcial)(efecto => efecto(heroeParcial))
+      }.statsBase match {
+        case ConjuntoStats(hp, fuerza, velocidad, inteligencia, statPrincipal) =>
+          ConjuntoStats(limitar(hp), limitar(fuerza),
+            limitar(velocidad), limitar(inteligencia), statPrincipal)
+      }
+    }
   }
 
   type Stat = Int
@@ -21,10 +35,38 @@ package object TAdeQuest {
       velocidad: Stat,
       inteligencia: Stat,
       statPrincipal: ConjuntoStats => Stat) {
+    def +(stats: ConjuntoStats): ConjuntoStats = {
+      copy(
+        hp = hp + HP(stats),
+        fuerza = fuerza + Fuerza(stats),
+        velocidad = velocidad + Velocidad(stats),
+        inteligencia = inteligencia + Inteligencia(stats))
+    }
     def valorStatPrincipal: Stat = statPrincipal(this)
     def incrementoRespectoA(statsAnteriores: ConjuntoStats) = {
       this.valorStatPrincipal - statsAnteriores.valorStatPrincipal
     }
+  }
+  
+  trait ValorStat {
+    val apply : ConjuntoStats => Stat
+    def apply(heroe: Heroe): Stat = apply(heroe.statsFinales)
+  }
+  
+  object HP extends ValorStat {
+	  val apply = _.hp
+  }
+
+  object Fuerza extends ValorStat {
+	  val apply = _.fuerza
+  }
+
+  object Velocidad extends ValorStat {
+	  val apply = _.velocidad
+  }
+
+  object Inteligencia extends ValorStat {
+	  val apply = _.inteligencia
   }
 
   type EfectoTrabajo = ConjuntoStats => ConjuntoStats
@@ -42,27 +84,73 @@ package object TAdeQuest {
     val efecto: Option[EfectoItem]
     val restricciones: List[Heroe => Boolean]
     val valor: Int
-    def apply(heroe: Heroe) : Heroe = ???
+
+    val apply: Inventario => Inventario
+    def apply(heroe: Heroe): Heroe = {
+      heroe.copy(inventario = apply(heroe.inventario))
+    }
   }
 
-  trait ItemCabeza extends Item
-  trait ItemTorso extends Item
-  trait ItemMano extends Item
-  trait Talisman extends Item
+  trait ItemCabeza extends Item {
+    val apply = _.copy(itemCabeza = Some(this))
+  }
+
+  trait ItemTorso extends Item {
+    val apply = _.copy(itemTorso = Some(this))
+  }
+
+  trait Talisman extends Item {
+    val apply = inventario => inventario.copy(talismanes = this :: inventario.talismanes)
+  }
+
+  trait ItemUnaMano extends Item {
+    override def apply(heroe: Heroe): Heroe = {
+      val nuevoItemManos: ItemManos =
+        heroe.inventario.itemManos match {
+          case UnaMano(Some(x), _) =>       // Si la mano izquierda esta ocupada
+            UnaMano(Some(x), Option(this))
+          case UnaMano(None, x) =>          // Si la mano izquierda esta desocupada
+            UnaMano(Option(this), x)
+          case DosManos(_) =>
+            UnaMano(None, Option(this))
+        }
+
+      heroe.copy(inventario = heroe.inventario.copy(itemManos = nuevoItemManos))
+    }
+  }
+
+  trait ItemDosManos extends Item {
+    override def apply(heroe: Heroe): Heroe = {
+      heroe.copy(inventario = heroe.inventario.copy(itemManos = DosManos(Option(this))))
+    }
+  }
   
-  trait ItemManos
+  trait ItemManos {
+    def items: List[Item]
+  }
 
   case class UnaMano(
-    manoIzquierda: Option[ItemMano],
-    manoDerecha: Option[ItemMano]) extends ItemManos
+      manoIzquierda: Option[ItemUnaMano],
+      manoDerecha: Option[ItemUnaMano])
+    extends ItemManos {
+    def items = List(manoIzquierda, manoDerecha).flatten
+  }
 
-  case class DosManos(item: Option[ItemMano]) extends ItemManos
+  case class DosManos(item: Option[ItemDosManos]) extends ItemManos {
+    def items = item.toList
+  }
 
   case class Inventario(
-    itemCabeza: Option[ItemCabeza] = None,
-    itemTorso: Option[ItemTorso] = None,
-    itemManos: ItemManos,
-    talismanes: List[Talisman] = List.empty)
+      itemCabeza: Option[ItemCabeza] = None,
+      itemTorso: Option[ItemTorso] = None,
+      itemManos: ItemManos = UnaMano(None, None),
+      talismanes: List[Talisman] = List.empty) {
+    def items: List[Item] = {
+      List(itemCabeza, itemTorso).flatten ++    // flatten elimina todos los None
+      itemManos.items ++
+      talismanes
+    }
+  }
 
   case class Equipo(
       nombre: String,
@@ -108,7 +196,7 @@ package object TAdeQuest {
   case class Tarea(
       efecto: Option[EfectoTarea],
       facilidad: Facilidad) {
-    def apply(heroe: Heroe) = {
+    def apply(heroe: Heroe): Heroe = {
       efecto.fold(heroe)(efecto => efecto(heroe))
     }
   }
