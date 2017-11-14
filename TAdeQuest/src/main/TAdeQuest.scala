@@ -1,5 +1,7 @@
 package main
 
+import scala.util.{Try, Success, Failure}
+
 package object TAdeQuest {
   case class Heroe(
       statsBase: ConjuntoStats,
@@ -11,31 +13,26 @@ package object TAdeQuest {
     def statsFinales: ConjuntoStats = ??? //Tomar los items y aplicarlos a los stat base
   }
 
-  trait Stat {
-    def apply(c: ConjuntoStats) : Int
-  }
-//  object Fuerza extends Stat {
-//    def apply(c: ConjuntoStats) : Int = c.fuerza
-//  }
-  
-  
-  case class ConjuntoStats(
-    hp: Stat,
-    fuerza: Stat,
-    velocidad: Stat,
-    inteligencia: Stat)
+  type Stat = Int
 
-//  case class Stat(valor: Int, valorBase: Int) {
-//    require(valorBase > 1, "El valor base debe ser positivo.")
-//    require(valor > valorBase, "El valor debe ser mayor al valor base.")
-//  }
+  case class ConjuntoStats(
+      hp: Stat,
+      fuerza: Stat,
+      velocidad: Stat,
+      inteligencia: Stat,
+      statPrincipal: ConjuntoStats => Stat) {
+    def valorStatPrincipal: Stat = statPrincipal(this)
+    def incrementoRespectoA(statsAnteriores: ConjuntoStats) = {
+      this.valorStatPrincipal - statsAnteriores.valorStatPrincipal
+    }
+  }
 
   type EfectoTrabajo = ConjuntoStats => ConjuntoStats
   case class Trabajo(
       efecto: Option[EfectoTrabajo],
       statPrincipal: Stat) {
     def apply(stats: ConjuntoStats) = {
-      efecto.foldLeft(stats)((statsParcial, trabajo) => trabajo(statsParcial))
+      efecto.fold(stats)(trabajo => trabajo(stats))
     }
   }
 
@@ -44,6 +41,7 @@ package object TAdeQuest {
   trait Item {
     val efecto: Option[EfectoItem]
     val restricciones: List[Heroe => Boolean]
+    val valor: Int
     def apply(heroe: Heroe) : Heroe = ???
   }
 
@@ -52,9 +50,13 @@ package object TAdeQuest {
   trait ItemMano extends Item
   trait Talisman extends Item
   
-  trait ItemManos extends Item
-//  case class UnaMano(manoIzquierda: Option[ItemMano], manoDerecha: Option[ItemMano]) extends ItemManos
-//  case class DosManos(item: Option[ItemMano]) extends ItemManos
+  trait ItemManos
+
+  case class UnaMano(
+    manoIzquierda: Option[ItemMano],
+    manoDerecha: Option[ItemMano]) extends ItemManos
+
+  case class DosManos(item: Option[ItemMano]) extends ItemManos
 
   case class Inventario(
     itemCabeza: Option[ItemCabeza] = None,
@@ -67,9 +69,47 @@ package object TAdeQuest {
       heroes: List[Heroe],
       pozoComun: Int) {
     def mejorEquipoSegun(cuantificador: Heroe => Int) = {
-      heroes.maxBy(cuantificador(_))
+      Try(heroes.maxBy(cuantificador(_))).toOption
     }
+    
+    def obtenerItem(item: Item): Equipo = {
+      val candidatos =
+        for {
+          heroe <- heroes
+          heroeEquipado = item(heroe)
+          if heroeEquipado.statsFinales.incrementoRespectoA(heroe.statsFinales) > 0
+        } yield heroeEquipado
+
+      Try(candidatos.maxBy(_.statsFinales.valorStatPrincipal)) match {
+        case Success(heroe) =>
+          reemplazarMiembro(heroe, item(heroe))    // Se lo reemplaza por el heroe equipado. 
+        case Failure(_) =>
+          copy(pozoComun = pozoComun + item.valor)
+      }
+    }
+
+    def obtenerMiembro(miembro: Heroe): Equipo = {
+      copy(heroes = miembro :: heroes)
+    }
+    
+    def reemplazarMiembro(miembroReemplazado: Heroe, miembroNuevo: Heroe): Equipo = {
+      copy(heroes = heroes.map {
+        case `miembroReemplazado` => miembroNuevo
+        case otro => otro
+      })
+    }
+
+    def lider = ???
   }
 
-  type Tarea = Heroe => Heroe
+  type EfectoTarea = Heroe => Heroe
+  type Facilidad = Heroe => Int
+
+  case class Tarea(
+      efecto: Option[EfectoTarea],
+      facilidad: Facilidad) {
+    def apply(heroe: Heroe) = {
+      efecto.fold(heroe)(efecto => efecto(heroe))
+    }
+  }
 }
