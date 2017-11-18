@@ -5,14 +5,10 @@ import scala.util.{Try, Success, Failure}
 package object TAdeQuest {
   case class Heroe(
       statsBase: ConjuntoStats,
-      trabajo: Option[Trabajo],
-      inventario: Inventario) {
+      trabajo: Option[Trabajo] = None,
+      inventario: Inventario = Inventario()) {
 
     def cambiarTrabajo(_trabajo: Trabajo) = copy(trabajo = Some(_trabajo))
-
-    def realizarTrabajo() = {
-      copy(statsBase = trabajo.fold(statsBase)(_(statsBase)))
-    }
 
     def equiparItem(item: Item) = item(this)
 
@@ -22,15 +18,21 @@ package object TAdeQuest {
       
       // Por cada item del inventario, aplicar el efecto
       //   al heroe y obtener los stats base del heroe resultante. 
-      inventario.items.foldLeft(this) { (heroeParcial, item) =>
-        // Foldear el efecto porque es un Option.
-        item.efecto.fold(heroeParcial)(efecto => efecto(heroeParcial))
-      }.statsBase match {
+      val statsParciales =
+        inventario.items.foldLeft(this) { (heroeParcial, item) =>
+          // Foldear el efecto porque es un Option.
+          item.efecto.fold(heroeParcial)(efecto => efecto(heroeParcial))
+        }.statsBase
+        
+      // Aplicar los efectos del trabajo.
+      trabajo.fold(statsParciales)(_(statsParciales)) match {
         case ConjuntoStats(hp, fuerza, velocidad, inteligencia, statPrincipal) =>
           ConjuntoStats(limitar(hp), limitar(fuerza),
             limitar(velocidad), limitar(inteligencia), statPrincipal)
       }
     }
+    
+    def realizarTarea(tarea: Tarea): Heroe = tarea(this)
   }
 
   type Stat = Int
@@ -226,10 +228,12 @@ package object TAdeQuest {
         case List() => None
       }
     }
+    
+    def realizarMision(mision: Mision) = mision(this)
   }
 
   type EfectoTarea = Heroe => Heroe
-  type Facilidad = Heroe => Int
+  type Facilidad = Heroe => Try[Int]
 
   case class Tarea(
       efecto: Option[EfectoTarea],
@@ -238,4 +242,37 @@ package object TAdeQuest {
       efecto.fold(heroe)(efecto => efecto(heroe))
     }
   }
+  
+  type Recompensa = Equipo => Equipo
+  type ResultadoMision = Try[Equipo]
+
+  case class Mision(
+      tareas: List[Tarea],
+      recompensa: Recompensa) {
+    def apply(equipo: Equipo): ResultadoMision = {
+      tareas.foldLeft(Try(equipo)) { (resultadoParcial, tarea) =>
+        resultadoParcial match {
+          case Failure(ex)            => Failure(ex)
+          case Success(equipoParcial) =>
+            // Solo tomar los heroes que sean capaces de realizar la tarea.
+            equipoParcial.heroes.filter(tarea.facilidad(_).isSuccess) match {
+              case List() =>
+                // Estado del equipo: equipo o equipoParcial?
+                Failure(MisionFallidaException(equipo, tarea))
+              case candidatos =>
+                // Elegir al que le resulta mas facil.
+                val elegido = candidatos.maxBy(tarea.facilidad(_).get)
+                Success(equipo.reemplazarMiembro(elegido)(tarea(elegido)))
+            }
+        }
+      } match {
+        case Failure(ex)     => Failure(ex)
+        case Success(equipo) => Success(recompensa(equipo))
+      }
+    }
+  }
+  
+  case class MisionFallidaException(
+      equipo: Equipo,
+      tareaFallida: Tarea) extends Exception
 }
