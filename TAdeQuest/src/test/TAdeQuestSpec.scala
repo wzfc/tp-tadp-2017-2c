@@ -11,19 +11,33 @@ class TAdeQuestSpec extends FlatSpec with Matchers with BeforeAndAfter {
   val guerrero = Trabajo(Some(ConjuntoStats(10, 15, 0, -10) + _), _.fuerza)
   val mago = Trabajo(Some(ConjuntoStats(0, -20, 0, 20) + _), _.inteligencia)
   val ladron = Trabajo(Some(ConjuntoStats(-5, 0, 10, 0) + _), _.velocidad)
-//  val guerrero = ???
-//  val mago = ???
-//  val ladron = ???
   
   /*ITEMS*/
-//  +10 hp, sólo lo pueden usar héroes con fuerza base > 30. Va en la cabeza.
-  val cascoVikingo​ = ???
+
+  //  +10 hp, sólo lo pueden usar héroes con fuerza base > 30. Va en la cabeza.
+  object CascoVikingo​ extends ItemCabeza {
+    val efecto = Some(_.aumentarHP(10))
+    val restricciones = List(_.statsBase.fuerza > 30)
+    val valor = 12
+  }
 //  +20 inteligencia, sólo lo pueden usar magos (o ladrones con más de 30 ​de inteligencia ​​base). ​Una​ ​mano.
-  val palitoMagico = ???
+  object PalitoMagico extends ItemUnaMano {
+    val efecto = Some(_.aumentarInteligencia(20))
+    val restricciones = List(_.statsBase.inteligencia > 30)
+    val valor = 12
+  }
 //  +30 velocidad, -30 ​hp. Armadura.
-  val armaduraEleganteSport = ???
+  object armaduraEleganteSport extends ItemTorso {
+    val efecto = Some(_.aumentarVelocidad(30).aumentarHP(-30))
+    val restricciones = List()
+    val valor = ???
+  }
 //  ​+2 fuerza.​ Ocupa ​las ​dos manos.
-  val arcoViejo = ???
+  object arcoViejo extends ItemDosManos {
+    val efecto = Some(_.aumentarFuerza(2))
+    val restricciones = List()
+    val valor = ???
+  }
 //  +20 hp. No pueden equiparlo los ladrones ni nadie con menos de 20 ​de​ fuerza base. Una mano.
   val escudoAntiRobo = ???
 //  ​Todos los stats se incrementan 10% del valor del stat principal​ ​ del​ ​ trabajo.
@@ -65,7 +79,7 @@ class TAdeQuestSpec extends FlatSpec with Matchers with BeforeAndAfter {
   val misionImposible = ???
   
   /*EQUIPOS*/
-  val equipoRocket = ???
+  //val equipoRocket = Equipo("rocket", List[], 10000)
   val vengadores = ???
   val ligaJusticia = ???
 

@@ -2,7 +2,7 @@ package com
 
 import scala.util.{Try, Success, Failure}
 
-package object TAdeQuest {
+package object TAdeQuest extends App {
   case class Heroe(
       statsBase: ConjuntoStats,
       trabajo: Option[Trabajo] = None,
@@ -37,6 +37,14 @@ package object TAdeQuest {
     }
     
     def realizarTarea(tarea: Tarea): Heroe = tarea(this)
+    
+    def aumentarHP(cantidad: Int): Heroe = copy(statsBase.copy(hp = statsBase.hp + cantidad))
+    
+    def aumentarFuerza(cantidad: Int): Heroe = copy(statsBase.copy(fuerza = statsBase.fuerza + cantidad))
+    
+    def aumentarVelocidad(cantidad: Int): Heroe = copy(statsBase.copy(velocidad = statsBase.velocidad + cantidad))
+    
+    def aumentarInteligencia(cantidad: Int): Heroe = copy(statsBase.copy(inteligencia = statsBase.inteligencia + cantidad))
   }
 
   type Stat = Int
@@ -116,24 +124,29 @@ package object TAdeQuest {
   }
 
   trait ItemUnaMano extends Item {
-    override def apply(heroe: Heroe): Heroe = {
+    val apply = {inventario: Inventario =>
       val nuevoItemManos: ItemManos =
-        heroe.inventario.itemManos match {
-          case UnaMano(Some(x), _) =>       // Si la mano izquierda esta ocupada
+        inventario.itemManos match {
+          case UnaMano(Some(x), _) => // Si la mano izquierda esta ocupada
             UnaMano(Some(x), Option(this))
-          case UnaMano(None, x) =>          // Si la mano izquierda esta desocupada
+          case UnaMano(None, x) => // Si la mano izquierda esta desocupada
             UnaMano(Some(this), x)
           case DosManos(_) =>
             UnaMano(None, Some(this))
         }
-
-      heroe.copy(inventario = heroe.inventario.copy(itemManos = nuevoItemManos))
+      
+      inventario.copy(itemManos = nuevoItemManos)
+    }
+    
+    override def apply(heroe: Heroe): Heroe = {
+      heroe.copy(inventario = this(heroe.inventario))
     }
   }
 
   trait ItemDosManos extends Item {
+    val apply = _.copy(itemManos = DosManos(Option(this)))
     override def apply(heroe: Heroe): Heroe = {
-      heroe.copy(inventario = heroe.inventario.copy(itemManos = DosManos(Option(this))))
+      heroe.copy(inventario = this(heroe.inventario))
     }
   }
   
@@ -151,7 +164,7 @@ package object TAdeQuest {
   case class DosManos(item: Option[ItemDosManos]) extends ItemManos {
     def items = item.toList
   }
-
+  
   case class Inventario(
       itemCabeza: Option[ItemCabeza] = None,
       itemTorso: Option[ItemTorso] = None,
@@ -225,9 +238,7 @@ package object TAdeQuest {
       recompensa: Recompensa) {
     def apply(equipo: Equipo): ResultadoMision = {
       tareas.foldLeft(Try(equipo)) { (resultadoParcial, tarea) =>
-        resultadoParcial match {
-          case Failure(ex)            => Failure(ex)
-          case Success(equipoParcial) =>
+        resultadoParcial.flatMap{equipoParcial =>
             // Solo tomar los heroes que sean capaces de realizar la tarea.
             equipoParcial.heroes.filter(tarea.facilidad(_).isSuccess) match {
               case List() =>
@@ -239,10 +250,7 @@ package object TAdeQuest {
                 Success(equipo.reemplazarMiembro(elegido)(tarea(elegido)))
             }
         }
-      } match {
-        case Failure(ex)     => Failure(ex)
-        case Success(equipo) => Success(recompensa(equipo))
-      }
+      }.map(recompensa(_))
     }
   }
   
@@ -261,12 +269,7 @@ package object TAdeQuest {
 	  }
     
     def entrenar(criterio: Criterio)(equipo: Equipo): Equipo = {
-      elegirMision(criterio)(equipo) match {
-        case None         => equipo
-        // Como elegirMision nunca retorna una mision que
-        //   podria fallar, no habria problema con el get.
-        case Some(mision) => entrenar(criterio)(mision(equipo).get)
-      }
+      elegirMision(criterio)(equipo).fold(equipo){ mision => entrenar(criterio)(mision(equipo).get)}
     }
   }
 }
