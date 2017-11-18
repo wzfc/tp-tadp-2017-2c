@@ -1,4 +1,4 @@
-package main
+package com
 
 import scala.util.{Try, Success, Failure}
 
