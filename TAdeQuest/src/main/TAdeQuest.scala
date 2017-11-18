@@ -123,9 +123,9 @@ package object TAdeQuest {
           case UnaMano(Some(x), _) =>       // Si la mano izquierda esta ocupada
             UnaMano(Some(x), Option(this))
           case UnaMano(None, x) =>          // Si la mano izquierda esta desocupada
-            UnaMano(Option(this), x)
+            UnaMano(Some(this), x)
           case DosManos(_) =>
-            UnaMano(None, Option(this))
+            UnaMano(None, Some(this))
         }
 
       heroe.copy(inventario = heroe.inventario.copy(itemManos = nuevoItemManos))
@@ -167,11 +167,13 @@ package object TAdeQuest {
 
   case class Equipo(
       nombre: String,
-      heroes: List[Heroe],
+      implicit val heroes: List[Heroe],
       pozoComun: Int) {
     def mejorEquipoSegun(cuantificador: Heroe => Int) = {
       Try(heroes.maxBy(cuantificador(_))).toOption
     }
+    
+    def ganarOro(cantidad: Int): Equipo = copy(pozoComun = pozoComun + cantidad)
     
     def obtenerItem(item: Item): Equipo = {
       val candidatos =
@@ -183,7 +185,7 @@ package object TAdeQuest {
 
       Try(candidatos.maxBy(_.statsFinales.valorStatPrincipal)) match {
         case Success(heroe) =>
-          reemplazarMiembro(heroe, item(heroe))    // Se lo reemplaza por el heroe equipado. 
+          reemplazarMiembro(heroe)(item(heroe))    // Se lo reemplaza por el heroe equipado. 
         case Failure(_) =>
           copy(pozoComun = pozoComun + item.valor)
       }
@@ -193,14 +195,37 @@ package object TAdeQuest {
       copy(heroes = miembro :: heroes)
     }
     
-    def reemplazarMiembro(miembroReemplazado: Heroe, miembroNuevo: Heroe): Equipo = {
+    def reemplazarMiembro(miembroAReemplazar: Heroe)(miembroNuevo: Heroe): Equipo = {
       copy(heroes = heroes.map {
-        case `miembroReemplazado` => miembroNuevo
+        case `miembroAReemplazar` => miembroNuevo
         case otro => otro
       })
     }
 
-    def lider = ???
+    // Recibira todos los heroes del equipo por defecto.
+    // El uso de implicit es para que la recursividad sea aplicable.
+    def lider(implicit listaHeroes: List[Heroe]): Option[Heroe] = {
+      listaHeroes match {
+        // Si el stat principal de este es igual al maximo
+        //   de los siguientes, entonces hay un empate.
+        case heroe :: masHeroes
+        if (StatPrincipal(heroe) == masHeroes.map(StatPrincipal(_)).max) =>
+          None
+        
+        // Si este ya es mejor que los siguientes, entonces es el lider.
+        case heroe :: masHeroes
+        if (StatPrincipal(heroe) > masHeroes.map(StatPrincipal(_)).max) =>
+          Some(heroe)
+        
+        // Buscar el lider entre los siguientes.
+        case heroe :: masHeroes =>
+          lider(masHeroes)
+          
+        case List(heroe) => Some(heroe)
+
+        case List() => None
+      }
+    }
   }
 
   type EfectoTarea = Heroe => Heroe
