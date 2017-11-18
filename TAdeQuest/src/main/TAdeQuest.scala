@@ -32,6 +32,10 @@ package object TAdeQuest {
       }
     }
     
+    def incrementoStatPrincipal(item: Item): Int = {
+      StatPrincipal(equiparItem(item)) - StatPrincipal(this)
+    }
+    
     def realizarTarea(tarea: Tarea): Heroe = tarea(this)
   }
 
@@ -53,10 +57,6 @@ package object TAdeQuest {
     }
 
     def valorStatPrincipal: Stat = statPrincipal(this)
-
-    def incrementoRespectoA(statsAnteriores: ConjuntoStats) = {
-      this.valorStatPrincipal - statsAnteriores.valorStatPrincipal
-    }
   }
   
   trait ValorStat {
@@ -169,7 +169,7 @@ package object TAdeQuest {
 
   case class Equipo(
       nombre: String,
-      implicit val heroes: List[Heroe],
+      heroes: List[Heroe],
       pozoComun: Int) {
     def mejorEquipoSegun(cuantificador: Heroe => Int) = {
       Try(heroes.maxBy(cuantificador(_))).toOption
@@ -178,18 +178,10 @@ package object TAdeQuest {
     def ganarOro(cantidad: Int): Equipo = copy(pozoComun = pozoComun + cantidad)
     
     def obtenerItem(item: Item): Equipo = {
-      val candidatos =
-        for {
-          heroe <- heroes
-          heroeEquipado = item(heroe)
-          if heroeEquipado.statsFinales.incrementoRespectoA(heroe.statsFinales) > 0
-        } yield heroeEquipado
-
-      Try(candidatos.maxBy(_.statsFinales.valorStatPrincipal)) match {
-        case Success(heroe) =>
-          reemplazarMiembro(heroe)(item(heroe))    // Se lo reemplaza por el heroe equipado. 
-        case Failure(_) =>
-          copy(pozoComun = pozoComun + item.valor)
+      heroes.sortBy(_.incrementoStatPrincipal(item))
+            .filter(_.incrementoStatPrincipal(item) > 0) match {
+        case List()             => copy(pozoComun = pozoComun + item.valor)
+        case heroe :: masHeroes => reemplazarMiembro(heroe)(item(heroe))
       }
     }
 
@@ -204,32 +196,17 @@ package object TAdeQuest {
       })
     }
 
-    // Recibira todos los heroes del equipo por defecto.
-    // El uso de implicit es para que la recursividad sea aplicable.
-    def lider(implicit listaHeroes: List[Heroe]): Option[Heroe] = {
-      listaHeroes match {
-        // Si el stat principal de este es igual al maximo
-        //   de los siguientes, entonces hay un empate.
-        case heroe :: masHeroes
-        if (StatPrincipal(heroe) == masHeroes.map(StatPrincipal(_)).max) =>
-          None
-        
-        // Si este ya es mejor que los siguientes, entonces es el lider.
-        case heroe :: masHeroes
-        if (StatPrincipal(heroe) > masHeroes.map(StatPrincipal(_)).max) =>
-          Some(heroe)
-        
-        // Buscar el lider entre los siguientes.
-        case heroe :: masHeroes =>
-          lider(masHeroes)
-          
-        case List(heroe) => Some(heroe)
+    def lider(): Option[Heroe] = {
+      heroes.sortBy(StatPrincipal(_)) match {
+        // Si hay 2 maximos, no hay lider.
+        case a :: b :: masHeroes
+        if (StatPrincipal(a) == StatPrincipal(b)) => None
 
-        case List() => None
+        case x => x.headOption
       }
     }
     
-    def realizarMision(mision: Mision) = mision(this)
+    def realizarMision(mision: Mision): Try[Equipo] = mision(this)
   }
 
   type EfectoTarea = Heroe => Heroe
@@ -275,4 +252,24 @@ package object TAdeQuest {
   case class MisionFallidaException(
       equipo: Equipo,
       tareaFallida: Tarea) extends Exception
+
+  case class Taberna(misiones: List[Mision]) {
+    type Criterio = (Equipo, Equipo) => Boolean
+
+	  def elegirMision(criterio: Criterio)(equipo: Equipo): Option[Mision] = {
+      // Filtrar misiones realizables, luego ordenar por condicion.
+	    misiones.filter(_(equipo).isSuccess).sortWith {
+	      (m1: Mision, m2: Mision) => criterio(m1(equipo).get, m2(equipo).get)
+	    }.headOption
+	  }
+    
+    def entrenar(criterio: Criterio)(equipo: Equipo): Equipo = {
+      elegirMision(criterio)(equipo) match {
+        case None         => equipo
+        // Como elegirMision nunca retorna una mision que
+        //   podria fallar, no habria problema con el get.
+        case Some(mision) => entrenar(criterio)(mision(equipo).get)
+      }
+    }
+  }
 }
