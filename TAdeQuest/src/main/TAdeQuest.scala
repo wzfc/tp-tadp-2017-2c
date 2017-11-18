@@ -5,11 +5,17 @@ import scala.util.{Try, Success, Failure}
 package object TAdeQuest {
   case class Heroe(
       statsBase: ConjuntoStats,
-      trabajo: Trabajo,
+      trabajo: Option[Trabajo],
       inventario: Inventario) {
-    def cambiarTrabajo(_trabajo: Trabajo) = copy(trabajo = _trabajo)
-    def realizarTrabajo() = copy(statsBase = trabajo(statsBase))
+
+    def cambiarTrabajo(_trabajo: Trabajo) = copy(trabajo = Some(_trabajo))
+
+    def realizarTrabajo() = {
+      copy(statsBase = trabajo.fold(statsBase)(_(statsBase)))
+    }
+
     def equiparItem(item: Item) = item(this)
+
     def statsFinales: ConjuntoStats = {
       // Los stats finales no pueden ser menor a 1.
       val limitar: Stat => Stat = _ max 1
