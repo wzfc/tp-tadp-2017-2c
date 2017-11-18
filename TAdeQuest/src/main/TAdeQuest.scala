@@ -41,6 +41,7 @@ package object TAdeQuest {
       velocidad: Stat,
       inteligencia: Stat,
       statPrincipal: ConjuntoStats => Stat) {
+
     def +(stats: ConjuntoStats): ConjuntoStats = {
       copy(
         hp = hp + HP(stats),
@@ -48,7 +49,9 @@ package object TAdeQuest {
         velocidad = velocidad + Velocidad(stats),
         inteligencia = inteligencia + Inteligencia(stats))
     }
+
     def valorStatPrincipal: Stat = statPrincipal(this)
+
     def incrementoRespectoA(statsAnteriores: ConjuntoStats) = {
       this.valorStatPrincipal - statsAnteriores.valorStatPrincipal
     }
@@ -73,6 +76,10 @@ package object TAdeQuest {
 
   object Inteligencia extends ValorStat {
 	  val apply = _.inteligencia
+  }
+  
+  object StatPrincipal extends ValorStat {
+    val apply = _.valorStatPrincipal
   }
 
   type EfectoTrabajo = ConjuntoStats => ConjuntoStats
