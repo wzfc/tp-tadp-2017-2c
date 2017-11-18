@@ -8,12 +8,12 @@ import com.TAdeQuest._
 class TAdeQuestSpec extends FlatSpec with Matchers with BeforeAndAfter {
 
   /*TRABAJOS*/
-//  val guerrero = new Trabajo(new ConjuntoStats (10, 15, 0, -10), 15)
-//  val mago = new Trabajo(new ConjuntoStats(0, -20, 0, 20), 20)
-//  val ladron = new Trabajo(new ConjuntoStats(-5, 0, 10, 0), 10)
-  val guerrero = ???
-  val mago = ???
-  val ladron = ???
+  val guerrero = Trabajo(Some(ConjuntoStats(10, 15, 0, -10) + _), _.fuerza)
+  val mago = Trabajo(Some(ConjuntoStats(0, -20, 0, 20) + _), _.inteligencia)
+  val ladron = Trabajo(Some(ConjuntoStats(-5, 0, 10, 0) + _), _.velocidad)
+//  val guerrero = ???
+//  val mago = ???
+//  val ladron = ???
   
   /*ITEMS*/
 //  +10 hp, sólo lo pueden usar héroes con fuerza base > 30. Va en la cabeza.

@@ -26,9 +26,9 @@ package object TAdeQuest {
         
       // Aplicar los efectos del trabajo.
       trabajo.fold(statsParciales)(_(statsParciales)) match {
-        case ConjuntoStats(hp, fuerza, velocidad, inteligencia, statPrincipal) =>
+        case ConjuntoStats(hp, fuerza, velocidad, inteligencia) =>
           ConjuntoStats(limitar(hp), limitar(fuerza),
-            limitar(velocidad), limitar(inteligencia), statPrincipal)
+            limitar(velocidad), limitar(inteligencia))
       }
     }
     
@@ -45,8 +45,7 @@ package object TAdeQuest {
       hp: Stat,
       fuerza: Stat,
       velocidad: Stat,
-      inteligencia: Stat,
-      statPrincipal: ConjuntoStats => Stat) {
+      inteligencia: Stat) {
 
     def +(stats: ConjuntoStats): ConjuntoStats = {
       copy(
@@ -55,8 +54,6 @@ package object TAdeQuest {
         velocidad = velocidad + Velocidad(stats),
         inteligencia = inteligencia + Inteligencia(stats))
     }
-
-    def valorStatPrincipal: Stat = statPrincipal(this)
   }
   
   trait ValorStat {
@@ -80,14 +77,14 @@ package object TAdeQuest {
 	  val apply = _.inteligencia
   }
   
-  object StatPrincipal extends ValorStat {
-    val apply = _.valorStatPrincipal
+  object StatPrincipal {
+    def apply(heroe: Heroe) = heroe.trabajo.get.statPrincipal(heroe.statsFinales)
   }
 
   type EfectoTrabajo = ConjuntoStats => ConjuntoStats
   case class Trabajo(
       efecto: Option[EfectoTrabajo],
-      statPrincipal: Stat) {
+      statPrincipal: ConjuntoStats => Stat) {
     def apply(stats: ConjuntoStats) = {
       efecto.fold(stats)(trabajo => trabajo(stats))
     }
