@@ -188,9 +188,9 @@ class TAdeQuestSpec extends FlatSpec with Matchers with BeforeAndAfter {
       incrementarLosStatsDeLosMiembrosDelEquipoQueCumplanUnaCondicion)
 
   /*EQUIPOS*/
-  //val equipoRocket = Equipo("rocket", List[], 10000)
-  //val vengadores = ???
-  //val ligaJusticia = ???
+  val equipoRocket = Equipo("rocket", List(), 10000)
+  val vengadores = Equipo("avengers", List(), 20000)
+  val ligaJusticia = Equipo("justiceLeague", List(), 15000)
 
   /**
    * 1 - FORJANDO UN HEROE
