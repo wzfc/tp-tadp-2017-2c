@@ -1,6 +1,6 @@
 package ar.edu.frba.tadp
 
-import scala.util.{Try, Success, Failure}
+import scala.util.{ Try, Success, Failure }
 
 package object TAdeQuest {
   case class Heroe(
@@ -15,14 +15,14 @@ package object TAdeQuest {
     def statsFinales: ConjuntoStats = {
       // Los stats finales no pueden ser menor a 1.
       val limitar: Stat => Stat = _ max 1
-      
+
       // Por cada item del inventario, aplicar el efecto
       //   al heroe y obtener los stats base del heroe resultante. 
       val statsParciales =
         inventario.items.foldLeft(this) { (heroeParcial, item) =>
           item.efecto(heroeParcial)
         }.statsBase
-        
+
       // Aplicar los efectos del trabajo.
       trabajo.fold(statsParciales)(_(statsParciales)) match {
         case ConjuntoStats(hp, fuerza, velocidad, inteligencia) =>
@@ -30,7 +30,7 @@ package object TAdeQuest {
             limitar(velocidad), limitar(inteligencia))
       }
     }
-    
+
     def incrementoStatPrincipal(item: Item): Try[Int] = {
       (equiparItem(item).map(StatPrincipal(_)), StatPrincipal(this)) match {
         case (Success(Some(a)), Some(b)) => Success(a + b)
@@ -38,21 +38,21 @@ package object TAdeQuest {
         case _                           => Failure(new Exception("¡No posee stat principal!"))
       }
     }
-    
+
     def realizarTarea(tarea: Tarea): Heroe = tarea(this)
-    
+
     def hp[A](operador: (Stat, A) => Stat)(arg: A) = {
       copy(statsBase.copy(hp = operador(statsBase.hp, arg)))
     }
-    
+
     def fuerza[A](operador: (Stat, A) => Stat)(arg: A) = {
       copy(statsBase.copy(fuerza = operador(statsBase.fuerza, arg)))
     }
-    
+
     def velocidad[A](operador: (Stat, A) => Stat)(arg: A) = {
       copy(statsBase.copy(velocidad = operador(statsBase.velocidad, arg)))
     }
-    
+
     def inteligencia[A](operador: (Stat, A) => Stat)(arg: A) = {
       copy(statsBase.copy(inteligencia = operador(statsBase.inteligencia, arg)))
     }
@@ -74,28 +74,28 @@ package object TAdeQuest {
         inteligencia = inteligencia + Inteligencia(stats))
     }
   }
-  
+
   trait ValorStat {
-    val apply : ConjuntoStats => Stat
+    val apply: ConjuntoStats => Stat
     def apply(heroe: Heroe): Stat = apply(heroe.statsFinales)
   }
-  
+
   object HP extends ValorStat {
-	  val apply = _.hp
+    val apply = _.hp
   }
 
   object Fuerza extends ValorStat {
-	  val apply = _.fuerza
+    val apply = _.fuerza
   }
 
   object Velocidad extends ValorStat {
-	  val apply = _.velocidad
+    val apply = _.velocidad
   }
 
   object Inteligencia extends ValorStat {
-	  val apply = _.inteligencia
+    val apply = _.inteligencia
   }
-  
+
   object StatPrincipal {
     def apply(heroe: Heroe): Option[Stat] = {
       heroe.trabajo.map(_.statPrincipal(heroe.statsFinales))
@@ -112,7 +112,7 @@ package object TAdeQuest {
   }
 
   type EfectoItem = Heroe => Heroe
-  
+
   trait Item {
     val efecto: EfectoItem = x => x
     val restricciones: List[Heroe => Boolean] = List.empty
@@ -126,10 +126,10 @@ package object TAdeQuest {
       else
         Failure(RestriccionItemNoCumplidaException(heroe))
     }
-    
+
     def validarRestricciones(heroe: Heroe) = restricciones.forall(_(heroe))
   }
-  
+
   case class RestriccionItemNoCumplidaException(heroe: Heroe) extends Exception
 
   trait ItemCabeza extends Item {
@@ -152,9 +152,9 @@ package object TAdeQuest {
         Failure(RestriccionItemNoCumplidaException(heroe))
     }
   }
-  
+
   trait ItemUnaMano extends ItemMano {
-    val apply = {inventario: Inventario =>
+    val apply = { inventario: Inventario =>
       val nuevoItemManos: ItemManos =
         inventario.itemManos match {
           case UnaMano(Some(x), _) => // Si la mano izquierda esta ocupada
@@ -164,7 +164,7 @@ package object TAdeQuest {
           case DosManos(_) =>
             UnaMano(None, Some(this))
         }
-      
+
       inventario.copy(itemManos = nuevoItemManos)
     }
   }
@@ -172,31 +172,31 @@ package object TAdeQuest {
   trait ItemDosManos extends ItemMano {
     val apply = _.copy(itemManos = DosManos(Option(this)))
   }
-  
+
   trait ItemManos {
     def items: List[Item]
   }
 
   case class UnaMano(
-      manoIzquierda: Option[ItemUnaMano],
-      manoDerecha: Option[ItemUnaMano])
-    extends ItemManos {
+    manoIzquierda: Option[ItemUnaMano],
+    manoDerecha: Option[ItemUnaMano])
+      extends ItemManos {
     def items = List(manoIzquierda, manoDerecha).flatten
   }
 
   case class DosManos(item: Option[ItemDosManos]) extends ItemManos {
     def items = item.toList
   }
-  
+
   case class Inventario(
       itemCabeza: Option[ItemCabeza] = None,
       itemTorso: Option[ItemTorso] = None,
       itemManos: ItemManos = UnaMano(None, None),
       talismanes: List[Talisman] = List.empty) {
     def items: List[Item] = {
-      List(itemCabeza, itemTorso).flatten ++    // flatten elimina todos los None
-      itemManos.items ++
-      talismanes
+      List(itemCabeza, itemTorso).flatten ++ // flatten elimina todos los None
+        itemManos.items ++
+        talismanes
     }
   }
 
@@ -207,9 +207,9 @@ package object TAdeQuest {
     def mejorEquipoSegun(cuantificador: Heroe => Int) = {
       Try(heroes.maxBy(cuantificador(_))).toOption
     }
-    
+
     def ganarOro(cantidad: Int): Equipo = copy(pozoComun = pozoComun + cantidad)
-    
+
     def obtenerItem(item: Item): Equipo = {
       val candidatos =
         for {
@@ -217,7 +217,7 @@ package object TAdeQuest {
           incremento = heroe.incrementoStatPrincipal(item).getOrElse(-1)
           if incremento > 0
         } yield heroe
-      
+
       // get() no falla porque el for descarta los Failure.
       candidatos.sortBy(_.incrementoStatPrincipal(item).get) match {
         case List()     => copy(pozoComun = pozoComun + item.valor)
@@ -228,25 +228,24 @@ package object TAdeQuest {
     def obtenerMiembro(miembro: Heroe): Equipo = {
       copy(heroes = miembro :: heroes)
     }
-    
+
     def reemplazarMiembro(miembroAReemplazar: Heroe)(miembroNuevo: Heroe): Equipo = {
       copy(heroes = heroes.map {
         case `miembroAReemplazar` => miembroNuevo
-        case otro => otro
+        case otro                 => otro
       })
     }
 
     def lider(): Option[Heroe] = {
       heroes.filter(StatPrincipal(_).isDefined)
-            .sortBy(StatPrincipal(_).get) match {
-        // Si hay 2 maximos, no hay lider.
-        case a :: b :: masHeroes
-        if (StatPrincipal(a) == StatPrincipal(b)) => None
+        .sortBy(StatPrincipal(_).get) match {
+          // Si hay 2 maximos, no hay lider.
+          case a :: b :: masHeroes if (StatPrincipal(a) == StatPrincipal(b)) => None
 
-        case x => x.headOption
-      }
+          case x => x.headOption
+        }
     }
-    
+
     def realizarMision(mision: Mision): Try[Equipo] = mision(this)
   }
 
@@ -258,7 +257,7 @@ package object TAdeQuest {
       facilidad: Facilidad) {
     def apply(heroe: Heroe): Heroe = efecto(heroe)
   }
-  
+
   type Recompensa = Equipo => Equipo
   type ResultadoMision = Try[Equipo]
 
@@ -282,23 +281,23 @@ package object TAdeQuest {
       }.map(recompensa(_))
     }
   }
-  
+
   case class MisionFallidaException(
-      equipo: Equipo,
-      tareaFallida: Tarea) extends Exception
+    equipo: Equipo,
+    tareaFallida: Tarea) extends Exception
 
   case class Taberna(misiones: List[Mision]) {
     type Criterio = (Equipo, Equipo) => Boolean
 
-	  def elegirMision(criterio: Criterio)(equipo: Equipo): Option[Mision] = {
+    def elegirMision(criterio: Criterio)(equipo: Equipo): Option[Mision] = {
       // Filtrar misiones realizables, luego ordenar por condicion.
-	    misiones.filter(_(equipo).isSuccess).sortWith {
-	      (m1: Mision, m2: Mision) => criterio(m1(equipo).get, m2(equipo).get)
-	    }.headOption
-	  }
-    
+      misiones.filter(_(equipo).isSuccess).sortWith {
+        (m1: Mision, m2: Mision) => criterio(m1(equipo).get, m2(equipo).get)
+      }.headOption
+    }
+
     def entrenar(criterio: Criterio)(equipo: Equipo): Equipo = {
-      elegirMision(criterio)(equipo).fold(equipo){ mision =>
+      elegirMision(criterio)(equipo).fold(equipo) { mision =>
         entrenar(criterio)(mision(equipo).get)
       }
     }

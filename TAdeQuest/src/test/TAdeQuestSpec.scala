@@ -1,11 +1,13 @@
 package ar.edu.frba.tadp.test
 
+import scala.util.Failure
+import scala.util.Success
+
+import org.scalatest.BeforeAndAfter
 import org.scalatest.FlatSpec
 import org.scalatest.Matchers
-import org.scalatest.BeforeAndAfter
+
 import ar.edu.frba.tadp.TAdeQuest._
-import scala.util.{Success, Failure}
-import org.scalactic.source.Position.apply
 
 class TAdeQuestSpec extends FlatSpec with Matchers with BeforeAndAfter {
 
@@ -105,7 +107,7 @@ class TAdeQuestSpec extends FlatSpec with Matchers with BeforeAndAfter {
           None,
           Some(armaduraEleganteSport),
           UnaMano(None, None),
-          List(talismanDeDedicacion)))
+          List(talismanDelMinimalismo)))
   superman.equiparItem(espadaDeLaVida)
   
   object batman extends Heroe(
@@ -114,11 +116,44 @@ class TAdeQuestSpec extends FlatSpec with Matchers with BeforeAndAfter {
       Inventario())
   batman.equiparItem(armaduraEleganteSport)
   batman.equiparItem(cascoVikingo)
+  
+  object robinHood extends Heroe(
+      ConjuntoStats(40, 30, 70, 80),
+      Some(ladron),
+      Inventario())
+  robinHood.equiparItem(arcoViejo)
+  robinHood.equiparItem(escudoAntiRobo)
+  robinHood.equiparItem(talismanDeDedicacion)
 
-  //object robinHood
-  //object ironman
-  //object spiderman
-  //object drStrange
+
+  object ironman extends Heroe(
+    ConjuntoStats(40, 100, 80, 80),
+    Some(guerrero),
+    Inventario())
+  ironman.equiparItem(armaduraEleganteSport)
+  ironman.equiparItem(vinchaDelBufaloDeAgua)
+
+  object spiderman extends Heroe(
+    ConjuntoStats(100, 40, 70, 80),
+    Some(guerrero),
+    Inventario())
+  spiderman.equiparItem(palitoMagico)
+  spiderman.equiparItem(vinchaDelBufaloDeAgua)
+  spiderman.equiparItem(escudoAntiRobo)
+
+  object drStrange extends Heroe(
+    ConjuntoStats(40, 30, 70, 80),
+    Some(mago),
+    Inventario())
+  drStrange.equiparItem(palitoMagico)
+  drStrange.equiparItem(espadaDeLaVida)
+
+  object drFrio extends Heroe(
+    ConjuntoStats(50, 200, 100, 80),
+    Some(ladron),
+    Inventario())
+  drFrio.equiparItem(armaduraEleganteSport)
+  drFrio.equiparItem(vinchaDelBufaloDeAgua)
 
   /*TAREAS*/
   //		  reduce la vida de cualquier héroe con fuerza < 20;
@@ -188,115 +223,116 @@ class TAdeQuestSpec extends FlatSpec with Matchers with BeforeAndAfter {
       incrementarLosStatsDeLosMiembrosDelEquipoQueCumplanUnaCondicion)
 
   /*EQUIPOS*/
-  val equipoRocket = Equipo("rocket", List(), 10000)
-  val vengadores = Equipo("avengers", List(), 20000)
-  val ligaJusticia = Equipo("justiceLeague", List(), 15000)
+  val equipoRocket = Equipo("rocket", List(robinHood, drFrio), 10000)
+  val vengadores = Equipo("avengers", List(spiderman, ironman, drStrange), 20000)
+  val ligaJusticia = Equipo("justiceLeague", List(batman, superman), 15000)
+  
+  /*TABERNA*/
+  
+  val taberna = Taberna(List(misionTranqui, misionPeligrosa, misionImposible))
+  
+  val criterio = (e1: Equipo, e2: Equipo) => e1.pozoComun > e2.pozoComun
 
   /**
    * 1 - FORJANDO UN HEROE
    */
   
   "obtener y alterear stats de un heroe" should
-    "su fuerza base debe ser 10" in {
-    	object superman extends Heroe(
-    			ConjuntoStats(100, 120, 605, 80),
-    			Some(guerrero),
-    			Inventario(
-    					None,
-    					Some(armaduraEleganteSport),
-    					UnaMano(None, None),
-    					List(talismanDeDedicacion)))
-    	superman.equiparItem(espadaDeLaVida)
+    "su fuerza base debe ser 110" in {
 
       superman.hp(asignar)(10)
-      HP(superman) === 10
+      assert(HP(superman) === 110)
   }
 
-  //
-  //  "un heroe se equipa con un item" should
-  //    "gana un punto de experiencia por cada kg levantado" in {
-  //
-  //      val otroCharizard = unCharizard.doLevantar(10).pokemon
-  //      assert(otroCharizard.experiencia === 20)
-  //    }
-  //
-  //  "un heroe cambia de trabajo" should
-  //    "gana dos puntos de experiencia por cada kg levantado" in {
-  //
-  //      val resultado = Normal(unMachop).realizarActividad(Actividades.levantar(10))
-  //      assert(resultado === Normal(unMachop.copy(experiencia = 30)))
-  //    }
+
+  "un heroe se equipa con un item" should
+    "aumenta la cantidad de items en el inventario" in {
+
+      val resultado = spiderman.equiparItem(espadaDeLaVida)
+      assert(resultado.get.inventario.items.size === 1)
+    }
+
+  "un heroe cambia de trabajo" should
+    "cambiar su stat principal" in {
+
+      val resultado = robinHood.cambiarTrabajo(mago)
+      assert(resultado !== robinHood)
+    }
 
   /**
    * 2 - HAY EQUIPO
    */
-  //
-  //  "obtener mejor heroe segun de un equipo" should
-  //    "no poder levantar pesas" in {
-  //
-  //      val resultado = unGengar.doLevantar(10)
-  //      assert(resultado == NoPuedeRealizar(unGengar))
-  //    }
-  //
-  //  "obtener un item de un equipo" should
-  //    "pierde 10 de energia y no gana experiencia" in {
-  //
-  //      val resultado = Normal(unMachop).realizarActividad(levantar(3000))
-  //      assert(resultado === Paralizado(unMachop.copy(energia = 90)))
-  //    }
-  //
-  //  "obtener un miembro de un equipo" should
-  //    "pierde un punto de energia y gana 200 de experiencia" in {
-  //      val otroMachop = unMachop.doNadar(1).pokemon
-  //      assert(otroMachop.energia === 99)
-  //    }
-  //
-  //  "reemplazar el miembro de un equipo" should
-  //    "pierde 60 puntos de energia y
-  //       gana 12000 de experiencia y gana un punto de velocidad" in {
-  //
-  //      val otroMagikarp = unMagikarp.doNadar(60).pokemon
-  //      assert(otroMagikarp.experiencia === 12010)
-  //    }
-  //
-  //  "obtener el lider de un equipo" should
-  //    "queda en KO y no gana experiencia" in {
-  //
-  //    val resultado = Normal(unCharizard).realizarActividad(Actividades.nadar(1))
-  //    assert(resultado == KO(unCharizard))
-  //  }
+
+  "obtener mejor heroe segun de un equipo" should
+    "retorna un heroe que cumple el criterio" in {
+
+      val heroe = ligaJusticia.mejorEquipoSegun((superman) => 605)
+      assert(heroe === superman)
+    }
+
+  "obtener un item de un equipo" should
+    "se obtiene un item" in {
+
+      val resultado = vengadores.obtenerItem(armaduraEleganteSport)
+      assert(resultado === armaduraEleganteSport)
+    }
+
+  "obtener un miembro de un equipo" should
+    "se obtiene un miembro dado" in {
+    
+      val resultado = vengadores.obtenerMiembro(ironman)
+      assert(resultado === ironman)
+    }
+
+  "reemplazar el miembro de un equipo" should
+    "obtener un miembro nuevo " in {
+
+      vengadores.reemplazarMiembro(ironman)(batman)
+      assert(!vengadores.heroes.contains(ironman))
+    }
+
+  "obtener el lider de un equipo" should
+    "darme el lider de es equipo" in {
+
+    val resultado = equipoRocket.lider()
+    assert(resultado === drFrio)
+  }
   /**
    * 3 - MISIONES
    */
-  //
-  //  "cuando un pokemon paralizado levanta pesas" should
-  //    "no gana experiencia y queda KO" in {
-  //
-  //      val resultado = Paralizado(unMachop).realizarActividad(Actividades.levantar(10))
-  //      assert(resultado === KO(unMachop))
-  //    }
+
+  "cuando un equipo puede realizar una mision" should
+    "cobra toda la recompensa" in {
+
+      val pozoInicial = vengadores.pozoComun
+      val resultado = vengadores.realizarMision(misionPeligrosa)
+      assert(pozoInicial === resultado.get.pozoComun)
+    }
+  
+  "cuando un equipo no puede realizar una mision" should
+    "avisar que no puede realizar la mision" in {
+    
+      assertThrows[MisionFallidaException] {
+        equipoRocket.realizarMision(misionPeligrosa)
+      }
+    }
 
   /**
    * 4 - LA TABERNA
    */
-  //
-  //  "elegir mision para un equipo" should
-  //    "recupera su energía y queda Dormido" in {
-  //
-  //      val resultado = Normal(unMachop.copy(energia = 1)).realizarActividad(descansar)
-  //      assert(resultado === Dormido(unMachop.copy(energia = unMachop.energiaMaxima)))
-  //    }
-  //
-  //  "entrenar un equipo" should
-  //    "se despierta después de tres actividades" in {
-  //
-  //      val resultado = Dormido(unMachop).realizarActividad(levantar(10))
-  //      assert(resultado === Dormido(unMachop, 2))
-  //
-  //      val resultado2 = resultado.realizarActividad(levantar(10))
-  //      assert(resultado2 === Dormido(unMachop, 1))
-  //
-  //      assert(resultado2.realizarActividad(levantar(10)) === Normal(unMachop))
-  //    }
+
+  "elegir mision para un equipo" should
+    "retornar la mision adecuada para un equipo" in {
+
+      val resultado = taberna.elegirMision(criterio)(vengadores)
+      assert(resultado === misionImposible)
+    }
+
+  "entrenar un equipo" should
+    "finaliza las misiones y devuelve el equipo entrenado" in {
+
+      val resultado = taberna.entrenar(criterio)(ligaJusticia)
+      assert(resultado !== ligaJusticia)
+    }
 
 }
