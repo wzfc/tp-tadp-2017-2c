@@ -39,33 +39,55 @@ class TAdeQuestSpec extends FlatSpec with Matchers with BeforeAndAfter {
     val valor = ???
   }
 //  +20 hp. No pueden equiparlo los ladrones ni nadie con menos de 20 ​de​ fuerza base. Una mano.
-  val escudoAntiRobo = ???
+  object escudoAntiRobo extends ItemUnaMano {
+    val efecto = Some(_.aumentarHP(20))
+    val restricciones = List()
+    val valor = ???
+  }
 //  ​Todos los stats se incrementan 10% del valor del stat principal​ ​ del​ ​ trabajo.
-  val talismanDeDedicacion = ???
+  object talismanDeDedicacion extends ItemUnaMano {
+    val efecto = Some(_.aumentarHP(20))
+    val restricciones = List()
+    val valor = ???
+  }
 //  +50 hp. -10 ​hp por ​cada ​otro ​item ​equipado.
-  val talismanDelMinimalismo = ???
-//  Si el héroe tiene más fuerza que inteligencia, +30 a la inteligencia; de lo contrario +10 a todos los stats menos la inteligencia. Sólo lo pueden ​equipar​ los​ héroes​ sin​ trabajo. ​Sombrero.
-  val vinchaDelBufaloDeAgua = ???
+  object talismanDelMinimalismo extends ItemUnaMano {
+    val efecto = Some(_.aumentarHP(50))
+    val restricciones = List()
+    val valor = ???
+  }
+//  Si el héroe tiene más fuerza que inteligencia, +30 a la inteligencia; 
+//  de lo contrario +10 a todos los stats menos la inteligencia. 
+//  Sólo lo pueden ​equipar​ los​ héroes​ sin​ trabajo. ​Sombrero.
+  object vinchaDelBufaloDeAgua extends ItemCabeza {
+    val efecto = Some(_.aumentarHP(50))
+    val restricciones = List()
+    val valor = ???
+  }
 //  Todos los ​stats ​son 1.
-  val talismanMaldito = ???
+  object talismanMaldito extends ItemUnaMano {
+    val efecto = Some(_.aumentarHP(50))
+    val restricciones = List()
+    val valor = ???
+  }
 //  ​Hace ​que la fuerza del héroe sea igual a ​su hp.
-  val espadaDe​La​Vida = ???
-  
-  /*HEROES*/
-  val superman = ???
-  val batman = ???
-  val robinHood = ???
-  val ironman = ???
-  val spiderman = ???
-  val drStrange = ???
+  object espadaDe​La​Vida extends ItemUnaMano {
+    val efecto = Some(_.aumentarHP(50))
+    val restricciones = List()
+    val valor = ???
+  }
   
   /*TAREAS*/
-//		  reduce la vida de cualquier héroe con fuerza < 20; facilidad de 10 para cualquier héroe o 20 si el líder del equipo es un guerrero;
-  val pelearContraMonstruo = ???
-//		  no le hace nada a los magos ni a los ladrones, pero sube la fuerza de todos los demás en 1 y baja en 5 su hp;facilidad igual a la inteligencia del héroe + 10 por cada ladrón en su equipo;
-  val forzarPuerta = ???
-//		  le agrega un talismán ​al heroe; facilidad igual a la velocidad ​del ​heroe, pero ​no​ puede ser hecho ​por equipos ​cuyo ​líder no​ sea un ​ladrón.
-  val robarTalisman = ???
+//  reduce la vida de cualquier héroe con fuerza < 20; 
+//  facilidad de 10 para cualquier héroe o 20 si el líder del equipo es un guerrero;
+  val pelearContraMonstruo = Tarea(???, ???)
+//  no le hace nada a los magos ni a los ladrones, pero sube la fuerza de todos los demás en 1 y baja en 5 su hp;
+//  facilidad igual a la inteligencia del héroe + 10 por cada ladrón en su equipo;
+  val forzarPuerta = Tarea(???, ???)
+//  le agrega un talismán ​al heroe; 
+//  facilidad igual a la velocidad ​del ​heroe,
+//  pero ​no​ puede ser hecho ​por equipos ​cuyo ​líder no​ sea un ​ladrón.
+  val robarTalisman = Tarea(???, ???)
   
   /*RECOMPENSAS*/
   val ganarOroParaElPozoComun = ???
@@ -74,14 +96,29 @@ class TAdeQuestSpec extends FlatSpec with Matchers with BeforeAndAfter {
   val encontrarUnNuevoHeroeQue​Se​Sume​Al​Equipo = ???
   
   /*MISIONES*/
-  val misionTranqui = ???
-  val misionPeligrosa = ???
-  val misionImposible = ???
+  val misionTranqui = Mision(List(), ???)
+  val misionMedioPelo = Mision(List(), ???)
+  val misionPeligrosa = Mision(List(), ???)
+  val misionImposible = Mision(List(), ???)
+  
+  /*INVENTARIO*/
+  val inventario1 = Inventario(???, ???, ???, ???)
+  val inventario2 = Inventario(???, ???, ???, ???)
+  val inventario3 = Inventario(???, ???, ???, ???)
+  val inventario4 = Inventario(???, ???, ???, ???)
+  
+    /*HEROES*/
+  val superman = Heroe(ConjuntoStats(10, 15, 20, 10), Some(guerrero), inventario1)
+  val batman = Heroe(ConjuntoStats(10, 20, 0, 20), Some(guerrero), inventario2)
+  val robinHood = Heroe(ConjuntoStats(5, 0, 5, 0), Some(ladron), inventario3)
+  val ironman = Heroe(ConjuntoStats(10, 15, 10, 20), Some(guerrero), inventario4)
+  val spiderman = Heroe(ConjuntoStats(5, 15, 10, 10), Some(guerrero), inventario1)
+  val drStrange = Heroe(ConjuntoStats(5, 10, 0, 20), Some(mago), inventario4)
   
   /*EQUIPOS*/
-  //val equipoRocket = Equipo("rocket", List[], 10000)
-  val vengadores = ???
-  val ligaJusticia = ???
+  val equipoRocket = Equipo("rocket", List(), 10000)
+  val vengadores = Equipo("avengers", List(), 20000)
+  val ligaJusticia = Equipo("justiceLeague", List(), 15000)
 
   /**
    * 1 - FORJANDO UN HEROE
