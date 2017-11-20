@@ -1,8 +1,8 @@
-package com
+package ar.edu.frba.tadp
 
 import scala.util.{Try, Success, Failure}
 
-package object TAdeQuest extends App {
+package object TAdeQuest {
   case class Heroe(
       statsBase: ConjuntoStats,
       trabajo: Option[Trabajo] = None,
@@ -20,8 +20,7 @@ package object TAdeQuest extends App {
       //   al heroe y obtener los stats base del heroe resultante. 
       val statsParciales =
         inventario.items.foldLeft(this) { (heroeParcial, item) =>
-          // Foldear el efecto porque es un Option.
-          item.efecto.fold(heroeParcial)(efecto => efecto(heroeParcial))
+          item.efecto(heroeParcial)
         }.statsBase
         
       // Aplicar los efectos del trabajo.
@@ -32,19 +31,31 @@ package object TAdeQuest extends App {
       }
     }
     
-    def incrementoStatPrincipal(item: Item): Int = {
-      StatPrincipal(equiparItem(item)) - StatPrincipal(this)
+    def incrementoStatPrincipal(item: Item): Try[Int] = {
+      (equiparItem(item).map(StatPrincipal(_)), StatPrincipal(this)) match {
+        case (Success(Some(a)), Some(b)) => Success(a + b)
+        case (Failure(_), _)             => Failure(new Exception("¡No puede equipar este item!"))
+        case _                           => Failure(new Exception("¡No posee stat principal!"))
+      }
     }
     
     def realizarTarea(tarea: Tarea): Heroe = tarea(this)
     
-    def aumentarHP(cantidad: Int): Heroe = copy(statsBase.copy(hp = statsBase.hp + cantidad))
+    def hp[A](operador: (Stat, A) => Stat)(arg: A) = {
+      copy(statsBase.copy(hp = operador(statsBase.hp, arg)))
+    }
     
-    def aumentarFuerza(cantidad: Int): Heroe = copy(statsBase.copy(fuerza = statsBase.fuerza + cantidad))
+    def fuerza[A](operador: (Stat, A) => Stat)(arg: A) = {
+      copy(statsBase.copy(fuerza = operador(statsBase.fuerza, arg)))
+    }
     
-    def aumentarVelocidad(cantidad: Int): Heroe = copy(statsBase.copy(velocidad = statsBase.velocidad + cantidad))
+    def velocidad[A](operador: (Stat, A) => Stat)(arg: A) = {
+      copy(statsBase.copy(velocidad = operador(statsBase.velocidad, arg)))
+    }
     
-    def aumentarInteligencia(cantidad: Int): Heroe = copy(statsBase.copy(inteligencia = statsBase.inteligencia + cantidad))
+    def inteligencia[A](operador: (Stat, A) => Stat)(arg: A) = {
+      copy(statsBase.copy(inteligencia = operador(statsBase.inteligencia, arg)))
+    }
   }
 
   type Stat = Int
@@ -86,7 +97,9 @@ package object TAdeQuest extends App {
   }
   
   object StatPrincipal {
-    def apply(heroe: Heroe) = heroe.trabajo.get.statPrincipal(heroe.statsFinales)
+    def apply(heroe: Heroe): Option[Stat] = {
+      heroe.trabajo.map(_.statPrincipal(heroe.statsFinales))
+    }
   }
 
   type EfectoTrabajo = ConjuntoStats => ConjuntoStats
@@ -99,17 +112,25 @@ package object TAdeQuest extends App {
   }
 
   type EfectoItem = Heroe => Heroe
-
+  
   trait Item {
-    val efecto: Option[EfectoItem]
-    val restricciones: List[Heroe => Boolean]
-    val valor: Int
+    val efecto: EfectoItem = x => x
+    val restricciones: List[Heroe => Boolean] = List.empty
+    val valor: Int = 0
 
     val apply: Inventario => Inventario
-    def apply(heroe: Heroe): Heroe = {
-      heroe.copy(inventario = apply(heroe.inventario))
+
+    def apply(heroe: Heroe): Try[Heroe] = {
+      if (validarRestricciones(heroe))
+        Success(heroe.copy(inventario = apply(heroe.inventario)))
+      else
+        Failure(RestriccionItemNoCumplidaException(heroe))
     }
+    
+    def validarRestricciones(heroe: Heroe) = restricciones.forall(_(heroe))
   }
+  
+  case class RestriccionItemNoCumplidaException(heroe: Heroe) extends Exception
 
   trait ItemCabeza extends Item {
     val apply = _.copy(itemCabeza = Some(this))
@@ -123,7 +144,16 @@ package object TAdeQuest extends App {
     val apply = inventario => inventario.copy(talismanes = this :: inventario.talismanes)
   }
 
-  trait ItemUnaMano extends Item {
+  trait ItemMano extends Item {
+    override def apply(heroe: Heroe): Try[Heroe] = {
+      if (validarRestricciones(heroe))
+        Success(heroe.copy(inventario = this(heroe.inventario)))
+      else
+        Failure(RestriccionItemNoCumplidaException(heroe))
+    }
+  }
+  
+  trait ItemUnaMano extends ItemMano {
     val apply = {inventario: Inventario =>
       val nuevoItemManos: ItemManos =
         inventario.itemManos match {
@@ -137,17 +167,10 @@ package object TAdeQuest extends App {
       
       inventario.copy(itemManos = nuevoItemManos)
     }
-    
-    override def apply(heroe: Heroe): Heroe = {
-      heroe.copy(inventario = this(heroe.inventario))
-    }
   }
 
-  trait ItemDosManos extends Item {
+  trait ItemDosManos extends ItemMano {
     val apply = _.copy(itemManos = DosManos(Option(this)))
-    override def apply(heroe: Heroe): Heroe = {
-      heroe.copy(inventario = this(heroe.inventario))
-    }
   }
   
   trait ItemManos {
@@ -188,10 +211,17 @@ package object TAdeQuest extends App {
     def ganarOro(cantidad: Int): Equipo = copy(pozoComun = pozoComun + cantidad)
     
     def obtenerItem(item: Item): Equipo = {
-      heroes.sortBy(_.incrementoStatPrincipal(item))
-            .filter(_.incrementoStatPrincipal(item) > 0) match {
-        case List()             => copy(pozoComun = pozoComun + item.valor)
-        case heroe :: masHeroes => reemplazarMiembro(heroe)(item(heroe))
+      val candidatos =
+        for {
+          heroe <- heroes
+          incremento = heroe.incrementoStatPrincipal(item).getOrElse(-1)
+          if incremento > 0
+        } yield heroe
+      
+      // get() no falla porque el for descarta los Failure.
+      candidatos.sortBy(_.incrementoStatPrincipal(item).get) match {
+        case List()     => copy(pozoComun = pozoComun + item.valor)
+        case heroe :: _ => reemplazarMiembro(heroe)(item(heroe).get)
       }
     }
 
@@ -207,7 +237,8 @@ package object TAdeQuest extends App {
     }
 
     def lider(): Option[Heroe] = {
-      heroes.sortBy(StatPrincipal(_)) match {
+      heroes.filter(StatPrincipal(_).isDefined)
+            .sortBy(StatPrincipal(_).get) match {
         // Si hay 2 maximos, no hay lider.
         case a :: b :: masHeroes
         if (StatPrincipal(a) == StatPrincipal(b)) => None
@@ -220,14 +251,12 @@ package object TAdeQuest extends App {
   }
 
   type EfectoTarea = Heroe => Heroe
-  type Facilidad = Heroe => Try[Int]
+  type Facilidad = (Heroe, Equipo) => Try[Int]
 
   case class Tarea(
-      efecto: Option[EfectoTarea],
+      efecto: EfectoTarea,
       facilidad: Facilidad) {
-    def apply(heroe: Heroe): Heroe = {
-      efecto.fold(heroe)(efecto => efecto(heroe))
-    }
+    def apply(heroe: Heroe): Heroe = efecto(heroe)
   }
   
   type Recompensa = Equipo => Equipo
@@ -238,17 +267,17 @@ package object TAdeQuest extends App {
       recompensa: Recompensa) {
     def apply(equipo: Equipo): ResultadoMision = {
       tareas.foldLeft(Try(equipo)) { (resultadoParcial, tarea) =>
-        resultadoParcial.flatMap{equipoParcial =>
-            // Solo tomar los heroes que sean capaces de realizar la tarea.
-            equipoParcial.heroes.filter(tarea.facilidad(_).isSuccess) match {
-              case List() =>
-                // Estado del equipo: equipo o equipoParcial?
-                Failure(MisionFallidaException(equipo, tarea))
-              case candidatos =>
-                // Elegir al que le resulta mas facil.
-                val elegido = candidatos.maxBy(tarea.facilidad(_).get)
-                Success(equipo.reemplazarMiembro(elegido)(tarea(elegido)))
-            }
+        resultadoParcial.flatMap { equipoParcial =>
+          // Solo tomar los heroes que sean capaces de realizar la tarea.
+          equipoParcial.heroes.filter(tarea.facilidad(_, equipo).isSuccess) match {
+            case List() =>
+              // Estado del equipo: equipo o equipoParcial?
+              Failure(MisionFallidaException(equipo, tarea))
+            case candidatos =>
+              // Elegir al que le resulta mas facil.
+              val elegido = candidatos.maxBy(tarea.facilidad(_, equipo).get)
+              Success(equipo.reemplazarMiembro(elegido)(tarea(elegido)))
+          }
         }
       }.map(recompensa(_))
     }
@@ -269,7 +298,9 @@ package object TAdeQuest extends App {
 	  }
     
     def entrenar(criterio: Criterio)(equipo: Equipo): Equipo = {
-      elegirMision(criterio)(equipo).fold(equipo){ mision => entrenar(criterio)(mision(equipo).get)}
+      elegirMision(criterio)(equipo).fold(equipo){ mision =>
+        entrenar(criterio)(mision(equipo).get)
+      }
     }
   }
 }
