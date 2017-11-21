@@ -90,6 +90,7 @@ class TAdeQuestSpec extends FlatSpec with Matchers with BeforeAndAfter {
   //  Todos los stats son 1.
   object talismanMaldito extends Talisman {
     override val efecto = _.copy(statsBase = ConjuntoStats(1, 1, 1, 1))
+    override val valor = 50
   }
   
   def asignar(stat: Stat, valor: Stat) = valor
@@ -104,56 +105,51 @@ class TAdeQuestSpec extends FlatSpec with Matchers with BeforeAndAfter {
       ConjuntoStats(100, 120, 605, 80),
       Some(guerrero),
       Inventario(
-          None,
-          Some(armaduraEleganteSport),
-          UnaMano(None, None),
-          List(talismanDelMinimalismo)))
-  superman.equiparItem(espadaDeLaVida)
+          itemCabeza = None,
+          itemTorso  = Some(armaduraEleganteSport),
+          itemManos  = UnaMano(None, None),
+          talismanes = List(talismanDelMinimalismo)))
   
   object batman extends Heroe(
       ConjuntoStats(90, 50, 90, 80),
       Some(mago),
-      Inventario())
-  batman.equiparItem(armaduraEleganteSport)
-  batman.equiparItem(cascoVikingo)
+      Inventario(
+          itemCabeza = Some(cascoVikingo),
+          itemTorso  = Some(armaduraEleganteSport)))
   
   object robinHood extends Heroe(
       ConjuntoStats(40, 30, 70, 80),
       Some(ladron),
-      Inventario())
-  robinHood.equiparItem(arcoViejo)
-  robinHood.equiparItem(escudoAntiRobo)
-  robinHood.equiparItem(talismanDeDedicacion)
-
+      Inventario(
+          itemManos  = DosManos(Some(arcoViejo)),
+          talismanes = List()))
 
   object ironman extends Heroe(
     ConjuntoStats(40, 100, 80, 80),
     Some(guerrero),
-    Inventario())
-  ironman.equiparItem(armaduraEleganteSport)
-  ironman.equiparItem(vinchaDelBufaloDeAgua)
+    Inventario(
+        itemCabeza = Some(vinchaDelBufaloDeAgua),
+        itemTorso  = Some(armaduraEleganteSport)))
 
   object spiderman extends Heroe(
     ConjuntoStats(100, 40, 70, 80),
     Some(guerrero),
-    Inventario())
-  spiderman.equiparItem(palitoMagico)
-  spiderman.equiparItem(vinchaDelBufaloDeAgua)
-  spiderman.equiparItem(escudoAntiRobo)
+    Inventario(
+        itemManos  = UnaMano(Some(escudoAntiRobo), Some(palitoMagico)),
+        itemCabeza = Some(vinchaDelBufaloDeAgua)))
 
   object drStrange extends Heroe(
     ConjuntoStats(40, 30, 70, 80),
     Some(mago),
-    Inventario())
-  drStrange.equiparItem(palitoMagico)
-  drStrange.equiparItem(espadaDeLaVida)
+    Inventario(
+        itemManos = UnaMano(Some(palitoMagico), Some(espadaDeLaVida))))
 
   object drFrio extends Heroe(
     ConjuntoStats(50, 200, 100, 80),
     Some(ladron),
-    Inventario())
-  drFrio.equiparItem(armaduraEleganteSport)
-  drFrio.equiparItem(vinchaDelBufaloDeAgua)
+    Inventario(
+        itemTorso  = Some(armaduraEleganteSport),
+        itemCabeza = Some(vinchaDelBufaloDeAgua)))
 
   /*TAREAS*/
   //		  reduce la vida de cualquier héroe con fuerza < 20;
@@ -211,15 +207,18 @@ class TAdeQuestSpec extends FlatSpec with Matchers with BeforeAndAfter {
 
   /*MISIONES*/
   
-  // Tranqui porque se gana sin hacer nada.
-  object misionTranqui extends Mision(List.empty, ganarOroParaElPozoComun)
+  object misionTranqui extends Mision(List(forzarPuerta), ganarOroParaElPozoComun)
 
   object misionPeligrosa extends Mision(
       List(pelearContraMonstruo),
       encontrarUnNuevoHeroeQueSeSumeAlEquipo)
 
+  object tareaImposible extends Tarea(
+      efecto = x => x,
+      facilidad = (h, e) => Failure(new Exception("Tarea Imposible")))
+
   object misionImposible extends Mision(
-      List(pelearContraMonstruo, forzarPuerta, robarTalisman),
+      List(pelearContraMonstruo, forzarPuerta, robarTalisman, tareaImposible),
       incrementarLosStatsDeLosMiembrosDelEquipoQueCumplanUnaCondicion)
 
   /*EQUIPOS*/
@@ -239,17 +238,17 @@ class TAdeQuestSpec extends FlatSpec with Matchers with BeforeAndAfter {
   
   "obtener y alterear stats de un heroe" should
     "su fuerza base debe ser 110" in {
-
-      superman.hp(asignar)(10)
-      assert(HP(superman) === 110)
+      val resultado = superman.hp(asignar)(110)
+      assert(HP(resultado.statsBase) === 110)
   }
 
 
   "un heroe se equipa con un item" should
     "aumenta la cantidad de items en el inventario" in {
 
-      val resultado = spiderman.equiparItem(espadaDeLaVida)
-      assert(resultado.get.inventario.items.size === 1)
+      val cantidad = superman.inventario.items.size
+      val resultado = superman.equiparItem(espadaDeLaVida)
+      assert(resultado.get.inventario.items.size === cantidad + 1)
     }
 
   "un heroe cambia de trabajo" should
@@ -266,36 +265,44 @@ class TAdeQuestSpec extends FlatSpec with Matchers with BeforeAndAfter {
   "obtener mejor heroe segun de un equipo" should
     "retorna un heroe que cumple el criterio" in {
 
-      val heroe = ligaJusticia.mejorEquipoSegun((superman) => 605)
-      assert(heroe === superman)
+      val heroe = ligaJusticia.mejorEquipoSegun(Fuerza(_))
+      assert(heroe === Some(superman))
     }
 
   "obtener un item de un equipo" should
-    "se obtiene un item" in {
+    "uno de los miembros obtiene el item" in {
 
-      val resultado = vengadores.obtenerItem(armaduraEleganteSport)
-      assert(resultado === armaduraEleganteSport)
+      val resultado = vengadores.obtenerItem(arcoViejo)
+      assert(resultado.heroes.flatMap(_.inventario.items).contains(arcoViejo))
+    }
+
+  "obtener un item de un equipo 2" should
+    "incrementa el pozo comun del equipo" in {
+
+      val pozoComun = vengadores.pozoComun
+      val resultado = vengadores.obtenerItem(talismanMaldito)
+      assert(resultado.pozoComun === pozoComun + talismanMaldito.valor)
     }
 
   "obtener un miembro de un equipo" should
-    "se obtiene un miembro dado" in {
+    "se suma un miembro al equipo" in {
     
-      val resultado = vengadores.obtenerMiembro(ironman)
-      assert(resultado === ironman)
+      val resultado = vengadores.obtenerMiembro(batman)
+      assert(resultado.heroes.contains(batman))
     }
 
   "reemplazar el miembro de un equipo" should
     "obtener un miembro nuevo " in {
 
-      vengadores.reemplazarMiembro(ironman)(batman)
-      assert(!vengadores.heroes.contains(ironman))
+      val resultado = vengadores.reemplazarMiembro(ironman)(batman)
+      assert(!resultado.heroes.contains(ironman))
     }
 
   "obtener el lider de un equipo" should
-    "darme el lider de es equipo" in {
+    "darme el lider de ese equipo" in {
 
     val resultado = equipoRocket.lider()
-    assert(resultado === drFrio)
+    assert(resultado === Some(drFrio))
   }
   /**
    * 3 - MISIONES
@@ -312,9 +319,8 @@ class TAdeQuestSpec extends FlatSpec with Matchers with BeforeAndAfter {
   "cuando un equipo no puede realizar una mision" should
     "avisar que no puede realizar la mision" in {
     
-      assertThrows[MisionFallidaException] {
-        equipoRocket.realizarMision(misionPeligrosa)
-      }
+      val resultado = ligaJusticia.realizarMision(misionImposible)
+      assert(resultado.isFailure)
     }
 
   /**
@@ -325,14 +331,25 @@ class TAdeQuestSpec extends FlatSpec with Matchers with BeforeAndAfter {
     "retornar la mision adecuada para un equipo" in {
 
       val resultado = taberna.elegirMision(criterio)(vengadores)
-      assert(resultado === misionImposible)
+      assert(resultado.get === misionTranqui)
     }
 
   "entrenar un equipo" should
     "finaliza las misiones y devuelve el equipo entrenado" in {
+      // Disminuye HP y requiere HP >= 10
+      val tarea = Tarea(
+          efecto    = _.hp(-)(10),
+          facilidad = (h, e) => if (HP(h.statsBase) >= 10) Success(10)
+                                else Failure(new Exception()))
+      val mision = Mision(
+          tareas     = List(tarea),
+          recompensa = x => x)
+          
+      val taberna = Taberna(List(mision))
 
+      // Entrenar hasta que todos tengan HP < 10.
       val resultado = taberna.entrenar(criterio)(ligaJusticia)
-      assert(resultado !== ligaJusticia)
+      assert(resultado.heroes.forall(_.statsBase.hp < 10))
     }
 
 }

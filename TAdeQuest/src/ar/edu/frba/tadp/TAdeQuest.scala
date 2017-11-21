@@ -20,7 +20,7 @@ package object TAdeQuest {
       //   al heroe y obtener los stats base del heroe resultante. 
       val statsParciales =
         inventario.items.foldLeft(this) { (heroeParcial, item) =>
-          item.efecto(heroeParcial)
+          item.efecto(item.unapply(heroeParcial))
         }.statsBase
 
       // Aplicar los efectos del trabajo.
@@ -33,7 +33,7 @@ package object TAdeQuest {
 
     def incrementoStatPrincipal(item: Item): Try[Int] = {
       (equiparItem(item).map(StatPrincipal(_)), StatPrincipal(this)) match {
-        case (Success(Some(a)), Some(b)) => Success(a + b)
+        case (Success(Some(a)), Some(b)) => Success(a - b)
         case (Failure(_), _)             => Failure(new Exception("¡No puede equipar este item!"))
         case _                           => Failure(new Exception("¡No posee stat principal!"))
       }
@@ -119,6 +119,7 @@ package object TAdeQuest {
     val valor: Int = 0
 
     val apply: Inventario => Inventario
+    val unapply: Inventario => Inventario
 
     def apply(heroe: Heroe): Try[Heroe] = {
       if (validarRestricciones(heroe))
@@ -126,6 +127,8 @@ package object TAdeQuest {
       else
         Failure(RestriccionItemNoCumplidaException(heroe))
     }
+    
+    def unapply(heroe: Heroe): Heroe = heroe.copy(inventario = unapply(heroe.inventario))
 
     def validarRestricciones(heroe: Heroe) = restricciones.forall(_(heroe))
   }
@@ -134,14 +137,19 @@ package object TAdeQuest {
 
   trait ItemCabeza extends Item {
     val apply = _.copy(itemCabeza = Some(this))
+    val unapply = _.copy(itemCabeza = None)
   }
 
   trait ItemTorso extends Item {
     val apply = _.copy(itemTorso = Some(this))
+    val unapply = _.copy(itemTorso = None)
   }
 
   trait Talisman extends Item {
     val apply = inventario => inventario.copy(talismanes = this :: inventario.talismanes)
+    val unapply = { inventario: Inventario =>
+      inventario.copy(talismanes = inventario.talismanes.filterNot(this == _))
+    }
   }
 
   trait ItemMano extends Item {
@@ -167,10 +175,21 @@ package object TAdeQuest {
 
       inventario.copy(itemManos = nuevoItemManos)
     }
+    
+    val unapply = { inventario: Inventario =>
+      inventario.copy(itemManos = inventario.itemManos match {
+        case UnaMano(Some(x), b) if x == this =>
+          UnaMano(None, b)
+        case UnaMano(a, Some(x)) if x == this =>
+          UnaMano(a, None)
+        case x => x
+      })
+    }
   }
 
   trait ItemDosManos extends ItemMano {
-    val apply = _.copy(itemManos = DosManos(Option(this)))
+    val apply = _.copy(itemManos = DosManos(Some(this)))
+    val unapply = _.copy(itemManos = DosManos(None))
   }
 
   trait ItemManos {
@@ -204,7 +223,7 @@ package object TAdeQuest {
       nombre: String,
       heroes: List[Heroe],
       pozoComun: Int) {
-    def mejorEquipoSegun(cuantificador: Heroe => Int) = {
+    def mejorEquipoSegun(cuantificador: Heroe => Int): Option[Heroe] = {
       Try(heroes.maxBy(cuantificador(_))).toOption
     }
 
@@ -217,11 +236,11 @@ package object TAdeQuest {
           incremento = heroe.incrementoStatPrincipal(item).getOrElse(-1)
           if incremento > 0
         } yield heroe
-
+      
       // get() no falla porque el for descarta los Failure.
       candidatos.sortBy(_.incrementoStatPrincipal(item).get) match {
-        case List()     => copy(pozoComun = pozoComun + item.valor)
         case heroe :: _ => reemplazarMiembro(heroe)(item(heroe).get)
+        case _          => ganarOro(item.valor)
       }
     }
 
@@ -238,7 +257,7 @@ package object TAdeQuest {
 
     def lider(): Option[Heroe] = {
       heroes.filter(StatPrincipal(_).isDefined)
-        .sortBy(StatPrincipal(_).get) match {
+        .sortBy(- StatPrincipal(_).get) match {
           // Si hay 2 maximos, no hay lider.
           case a :: b :: masHeroes if (StatPrincipal(a) == StatPrincipal(b)) => None
 
