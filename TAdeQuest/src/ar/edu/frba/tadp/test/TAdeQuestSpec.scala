@@ -220,6 +220,12 @@ class TAdeQuestSpec extends FlatSpec with Matchers with BeforeAndAfter {
   object misionImposible extends Mision(
       List(pelearContraMonstruo, forzarPuerta, robarTalisman, tareaImposible),
       incrementarLosStatsDeLosMiembrosDelEquipoQueCumplanUnaCondicion)
+  
+  // Para que falle muchas veces la mision.
+  object misionSuperImposible extends Mision(
+      List(pelearContraMonstruo, forzarPuerta, robarTalisman, tareaImposible,
+           pelearContraMonstruo, forzarPuerta, robarTalisman, tareaImposible),
+      x => x)
 
   /*EQUIPOS*/
   val equipoRocket = Equipo("rocket", List(robinHood, drFrio), 10000)
@@ -313,13 +319,13 @@ class TAdeQuestSpec extends FlatSpec with Matchers with BeforeAndAfter {
 
       val pozoInicial = vengadores.pozoComun
       val resultado = vengadores.realizarMision(misionPeligrosa)
-      assert(pozoInicial === resultado.get.pozoComun)
+      assert(pozoInicial === resultado.equipo.pozoComun)
     }
   
   "cuando un equipo no puede realizar una mision" should
     "avisar que no puede realizar la mision" in {
     
-      val resultado = ligaJusticia.realizarMision(misionImposible)
+      val resultado = ligaJusticia.realizarMision(misionSuperImposible)
       assert(resultado.isFailure)
     }
 
@@ -342,7 +348,7 @@ class TAdeQuestSpec extends FlatSpec with Matchers with BeforeAndAfter {
           facilidad = (h, e) => if (HP(h.statsBase) >= 10) Success(10)
                                 else Failure(new Exception()))
       val mision = Mision(
-          tareas     = List(tarea),
+          tareas     = List(tarea, tarea),
           recompensa = x => x)
           
       val taberna = Taberna(List(mision))

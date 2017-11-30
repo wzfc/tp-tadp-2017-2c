@@ -1,6 +1,7 @@
 package ar.edu.frba.tadp
 
 import scala.util.{ Try, Success, Failure }
+import scala.annotation.tailrec
 
 package object TAdeQuest {
   case class Heroe(
@@ -265,7 +266,7 @@ package object TAdeQuest {
         }
     }
 
-    def realizarMision(mision: Mision): Try[Equipo] = mision(this)
+    def realizarMision(mision: Mision): ResultadoMision = mision(this)
   }
 
   type EfectoTarea = Heroe => Heroe
@@ -278,26 +279,53 @@ package object TAdeQuest {
   }
 
   type Recompensa = Equipo => Equipo
-  type ResultadoMision = Try[Equipo]
+  // type ResultadoMision = Try[Equipo]
+  
+  trait ResultadoMision {
+    val equipo: Equipo
+    def isSuccess: Boolean
+    def isFailure = !isSuccess
+  }
+  
+  case class Cumplida(equipo: Equipo) extends ResultadoMision {
+    def isSuccess = true
+  }
+  case class Parcial(equipo: Equipo, tarea: Tarea) extends ResultadoMision {
+    def isSuccess = true
+  }
+  case class Fallida(equipo: Equipo, tarea: Tarea) extends ResultadoMision {
+    def isSuccess = false
+  }
 
   case class Mision(
       tareas: List[Tarea],
       recompensa: Recompensa) {
     def apply(equipo: Equipo): ResultadoMision = {
-      tareas.foldLeft(Try(equipo)) { (resultadoParcial, tarea) =>
-        resultadoParcial.flatMap { equipoParcial =>
-          // Solo tomar los heroes que sean capaces de realizar la tarea.
-          equipoParcial.heroes.filter(tarea.facilidad(_, equipo).isSuccess) match {
-            case List() =>
-              // Estado del equipo: equipo o equipoParcial?
-              Failure(MisionFallidaException(equipo, tarea))
-            case candidatos =>
-              // Elegir al que le resulta mas facil.
-              val elegido = candidatos.maxBy(tarea.facilidad(_, equipo).get)
-              Success(equipo.reemplazarMiembro(elegido)(tarea(elegido)))
-          }
+      tareas.foldLeft(Cumplida(equipo): ResultadoMision) { (resultadoParcial, tarea) =>
+        resultadoParcial match {
+          case Fallida(e, t) => Fallida(e, t)  // Mision fallida, no hacer nada.
+          case misionNoFallida =>
+            val equipoParcial = misionNoFallida.equipo
+            equipoParcial.heroes.filter(tarea.facilidad(_, equipoParcial).isSuccess) match {
+              case List() =>
+                // Fallo una tarea.
+                misionNoFallida match {
+                  case Parcial(_, _) => Fallida(equipoParcial, tarea)
+                  case Cumplida(_) => Parcial(equipoParcial, tarea)
+                }
+              case candidatos =>
+                // Elegir al que le resulta mas facil.
+                val elegido = candidatos.maxBy(tarea.facilidad(_, equipoParcial).get)
+                misionNoFallida match {
+                  case Parcial(e, t) => Parcial(e.reemplazarMiembro(elegido)(tarea(elegido)), t)
+                  case Cumplida(e) => Cumplida(e.reemplazarMiembro(elegido)(tarea(elegido)))
+                }
+            }
         }
-      }.map(recompensa(_))
+      } match {
+        case Cumplida(e) => Cumplida(recompensa(e))
+        case x => x
+      }
     }
   }
 
@@ -311,13 +339,16 @@ package object TAdeQuest {
     def elegirMision(criterio: Criterio)(equipo: Equipo): Option[Mision] = {
       // Filtrar misiones realizables, luego ordenar por condicion.
       misiones.filter(_(equipo).isSuccess).sortWith {
-        (m1: Mision, m2: Mision) => criterio(m1(equipo).get, m2(equipo).get)
+        (m1: Mision, m2: Mision) => criterio(m1(equipo).equipo, m2(equipo).equipo)
       }.headOption
     }
 
-    def entrenar(criterio: Criterio)(equipo: Equipo): Equipo = {
-      elegirMision(criterio)(equipo).fold(equipo) { mision =>
-        entrenar(criterio)(mision(equipo).get)
+    // No era necesario cambiarlo, es solamente una optimizacion.
+    @tailrec
+    final def entrenar(criterio: Criterio)(equipo: Equipo): Equipo = {
+      elegirMision(criterio)(equipo) match {
+        case None => equipo
+        case Some(m) => entrenar(criterio)(m(equipo).equipo)
       }
     }
   }
